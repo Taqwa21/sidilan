@@ -193,7 +193,7 @@
 
             {{-- Pagination --}}
             <div class="mt-3">
-                {{ $letters->links() }}
+                {{ $letters->appends(request()->query())->links('pagination::bootstrap-5') }}
             </div>
 
         </div>
