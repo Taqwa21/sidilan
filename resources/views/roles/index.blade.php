@@ -1,6 +1,8 @@
 
 @extends('layouts.app')
 
+@section('title', 'Manajemen Role - SIDILAN')
+
 @section('content')
 <div class="container-fluid">
 
@@ -27,7 +29,7 @@
         </div>
     @endif
 
-    <!-- Form Tambah Role -->
+    {{-- FORM TAMBAH ROLE --}}
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white py-3">
             <h6 class="mb-0">Tambah Role</h6>
@@ -70,7 +72,7 @@
         </div>
     </div>
 
-    <!-- Tabel Role -->
+    {{-- TABEL ROLE --}}
     <div class="card border-0 shadow-sm">
         <div class="card-header bg-white py-3">
             <h6 class="mb-0">Daftar Role</h6>
@@ -134,8 +136,13 @@
                                     </button>
 
                                     <form action="{{ route('admin.roles.destroy', $role) }}"
-                                          method="POST" class="d-inline"
-                                          onsubmit="return confirm('Yakin ingin menghapus role ini?')">
+                                          method="POST"
+                                          class="d-inline"
+                                          data-confirm
+                                          data-confirm-title="Hapus Role?"
+                                          data-confirm-message="Yakin ingin menghapus role {{ $role->name }}? Tindakan ini tidak dapat dibatalkan."
+                                          data-confirm-button="Ya, Hapus"
+                                          data-confirm-type="danger">
                                         @csrf
                                         @method('DELETE')
 

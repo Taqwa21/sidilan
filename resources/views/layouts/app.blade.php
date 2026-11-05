@@ -100,6 +100,120 @@
             flex-shrink: 0;
         }
 
+        /* MODAL KONFIRMASI SIDILAN */
+        .sidilan-confirm-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 29, 48, 0.58);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 2000;
+            opacity: 1;
+            transition: opacity 0.2s ease;
+        }
+
+        .sidilan-confirm-overlay[hidden] {
+            display: none;
+        }
+
+        .sidilan-confirm-box {
+            background: #fff;
+            width: 100%;
+            max-width: 420px;
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.2);
+            transform: translateY(0);
+            animation: sidilanModalIn 0.2s ease;
+        }
+
+        .sidilan-confirm-icon {
+            width: 54px;
+            height: 54px;
+            border-radius: 14px;
+            background: #fff1df;
+            color: var(--orange);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 25px;
+            margin-bottom: 18px;
+        }
+
+        .sidilan-confirm-icon.danger {
+            background: #fdeaea;
+            color: #dc3545;
+        }
+
+        .sidilan-confirm-title {
+            color: var(--navy);
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .sidilan-confirm-message {
+            color: #687588;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        .sidilan-confirm-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .sidilan-confirm-actions button {
+            border: none;
+            border-radius: 8px;
+            padding: 10px 18px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .sidilan-btn-cancel {
+            background: #edf0f4;
+            color: #435166;
+        }
+
+        .sidilan-btn-cancel:hover {
+            background: #dfe4eb;
+        }
+
+        .sidilan-btn-confirm {
+            background: var(--navy);
+            color: white;
+        }
+
+        .sidilan-btn-confirm:hover {
+            background: #203f68;
+        }
+
+        .sidilan-btn-confirm.danger {
+            background: #dc3545;
+        }
+
+        .sidilan-btn-confirm.danger:hover {
+            background: #bb2d3b;
+        }
+
+        @keyframes sidilanModalIn {
+            from {
+                opacity: 0;
+                transform: translateY(12px) scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
         @media(max-width: 991px) {
             .sidebar {
                 width: 70px;
@@ -142,6 +256,18 @@
             .topbar h4 {
                 font-size: 19px;
             }
+
+            .sidilan-confirm-box {
+                padding: 22px;
+            }
+
+            .sidilan-confirm-actions {
+                flex-direction: column-reverse;
+            }
+
+            .sidilan-confirm-actions button {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -150,7 +276,6 @@
 
     <aside class="sidebar">
 
-        {{-- Brand --}}
         <div class="brand">
             <div class="brand-icon">
                 <i class="bi bi-envelope-paper"></i>
@@ -162,7 +287,6 @@
             </div>
         </div>
 
-        {{-- Menu Utama --}}
         <div class="nav-label">Menu Utama</div>
 
         <a href="{{ route('dashboard') }}"
@@ -213,7 +337,6 @@
             <span class="nav-text">Riwayat Surat</span>
         </a>
 
-        {{-- Menu Administrasi Khusus Admin --}}
         @if(Auth::user()->role?->slug === 'admin')
 
             <div class="nav-label">Administrasi</div>
@@ -238,7 +361,6 @@
 
         @endif
 
-        {{-- Logout --}}
         <div class="mt-5 pt-4 border-top border-secondary">
             <form action="{{ route('logout') }}" method="POST">
                 @csrf
@@ -253,7 +375,6 @@
 
     </aside>
 
-    {{-- Konten Utama --}}
     <main class="main-content">
 
         <div class="topbar d-flex justify-content-between align-items-center mb-4">
@@ -296,7 +417,128 @@
 
     </main>
 
+    {{-- MODAL KONFIRMASI GLOBAL --}}
+    <div id="sidilanConfirmModal"
+         class="sidilan-confirm-overlay"
+         hidden
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="sidilanConfirmTitle"
+         aria-describedby="sidilanConfirmMessage">
+
+        <div class="sidilan-confirm-box">
+
+            <div id="sidilanConfirmIcon" class="sidilan-confirm-icon">
+                <i class="bi bi-question-circle"></i>
+            </div>
+
+            <h5 id="sidilanConfirmTitle" class="sidilan-confirm-title">
+                Konfirmasi Tindakan
+            </h5>
+
+            <p id="sidilanConfirmMessage" class="sidilan-confirm-message">
+                Apakah Anda yakin ingin melanjutkan tindakan ini?
+            </p>
+
+            <div class="sidilan-confirm-actions">
+                <button type="button"
+                        id="sidilanConfirmCancel"
+                        class="sidilan-btn-cancel">
+                    Batal
+                </button>
+
+                <button type="button"
+                        id="sidilanConfirmProceed"
+                        class="sidilan-btn-confirm">
+                    Ya, Lanjutkan
+                </button>
+            </div>
+
+        </div>
+    </div>
+
     @stack('scripts')
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const modal = document.getElementById('sidilanConfirmModal');
+            const title = document.getElementById('sidilanConfirmTitle');
+            const message = document.getElementById('sidilanConfirmMessage');
+            const icon = document.getElementById('sidilanConfirmIcon');
+            const cancelButton = document.getElementById('sidilanConfirmCancel');
+            const proceedButton = document.getElementById('sidilanConfirmProceed');
+
+            let pendingForm = null;
+
+            function closeModal() {
+                modal.hidden = true;
+                pendingForm = null;
+            }
+
+            function openModal(form) {
+                pendingForm = form;
+
+                title.textContent = form.dataset.confirmTitle || 'Konfirmasi Tindakan';
+                message.textContent = form.dataset.confirmMessage || 'Apakah Anda yakin ingin melanjutkan tindakan ini?';
+                proceedButton.textContent = form.dataset.confirmButton || 'Ya, Lanjutkan';
+
+                const isDanger = form.dataset.confirmType === 'danger';
+
+                icon.classList.toggle('danger', isDanger);
+                proceedButton.classList.toggle('danger', isDanger);
+
+                icon.innerHTML = isDanger
+                    ? '<i class="bi bi-trash3"></i>'
+                    : '<i class="bi bi-question-circle"></i>';
+
+                modal.hidden = false;
+                cancelButton.focus();
+            }
+
+            document.addEventListener('submit', function (event) {
+                const form = event.target;
+
+                if (!form.matches('form[data-confirm]')) {
+                    return;
+                }
+
+                if (form.dataset.confirmed === 'true') {
+                    delete form.dataset.confirmed;
+                    return;
+                }
+
+                event.preventDefault();
+                openModal(form);
+            });
+
+            cancelButton.addEventListener('click', closeModal);
+
+            proceedButton.addEventListener('click', function () {
+                if (!pendingForm) {
+                    return;
+                }
+
+                const form = pendingForm;
+
+                closeModal();
+
+                form.dataset.confirmed = 'true';
+                form.requestSubmit();
+            });
+
+            modal.addEventListener('click', function (event) {
+                if (event.target === modal) {
+                    closeModal();
+                }
+            });
+
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && !modal.hidden) {
+                    closeModal();
+                }
+            });
+        });
+    </script>
 
 </body>
 </html>

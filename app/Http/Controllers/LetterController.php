@@ -113,9 +113,9 @@ class LetterController extends Controller
                         ->orWhere('origin', 'like', "%{$search}%");
                 });
             })
-            ->when($status, fn ($query) => $query->where('status', $status))
-            ->when($dateFrom, fn ($query) => $query->whereDate('letter_date', '>=', $dateFrom))
-            ->when($dateTo, fn ($query) => $query->whereDate('letter_date', '<=', $dateTo))
+            ->when($status, fn($query) => $query->where('status', $status))
+            ->when($dateFrom, fn($query) => $query->whereDate('letter_date', '>=', $dateFrom))
+            ->when($dateTo, fn($query) => $query->whereDate('letter_date', '<=', $dateTo))
             ->latest()
             ->paginate(10)
             ->withQueryString();
@@ -191,6 +191,295 @@ class LetterController extends Controller
             ->get();
 
         return view('letters.create', compact('units', 'classifications'));
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Form Edit Surat Draft
+    |--------------------------------------------------------------------------
+    */
+
+    public function edit($id)
+    {
+        abort_if(
+            $this->isAdmin(),
+            403,
+            'Administrator hanya memiliki akses pemantauan.'
+        );
+
+        $user = Auth::user();
+
+        abort_if(
+            !$user->unit_id,
+            403,
+            'Akun Anda belum memiliki unit kerja.'
+        );
+
+        $letter = $this->visibleLetters()->findOrFail($id);
+
+        abort_unless(
+            (int) $letter->sender_unit_id === (int) $user->unit_id,
+            403,
+            'Hanya unit pembuat surat yang dapat mengedit surat ini.'
+        );
+
+        abort_unless(
+            $letter->status === 'draft',
+            422,
+            'Hanya surat berstatus draft yang dapat diedit.'
+        );
+
+        $units = Unit::where('id', '!=', $user->unit_id)
+            ->orderBy('name')
+            ->get();
+
+        $classifications = Classification::where('is_active', true)
+            ->orderBy('name')
+            ->get();
+
+        return view('letters.edit', compact(
+            'letter',
+            'units',
+            'classifications'
+        ));
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Memperbarui Surat Draft
+    |--------------------------------------------------------------------------
+    */
+
+    public function update(Request $request, $id)
+    {
+        abort_if(
+            $this->isAdmin(),
+            403,
+            'Administrator tidak dapat mengedit surat.'
+        );
+
+        $user = Auth::user();
+
+        abort_if(
+            !$user->unit_id,
+            403,
+            'Akun Anda belum memiliki unit kerja.'
+        );
+
+        $letter = $this->visibleLetters()->findOrFail($id);
+
+        abort_unless(
+            (int) $letter->sender_unit_id === (int) $user->unit_id,
+            403,
+            'Hanya unit pembuat surat yang dapat mengedit surat ini.'
+        );
+
+        abort_unless(
+            $letter->status === 'draft',
+            422,
+            'Hanya surat berstatus draft yang dapat diedit.'
+        );
+
+        $validated = $request->validate([
+            'letter_number' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('letters', 'letter_number')->ignore($letter->id),
+            ],
+            'letter_date' => ['required', 'date'],
+            'origin' => ['required', 'string', 'max:255'],
+            'subject' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'receiver_unit_id' => [
+                'required',
+                'exists:units,id',
+                Rule::notIn([$user->unit_id]),
+            ],
+            'classification_id' => [
+                'nullable',
+                Rule::exists('classifications', 'id')
+                    ->where('is_active', true),
+            ],
+        ]);
+
+        DB::transaction(function () use ($letter, $validated, $user) {
+            $lockedLetter = Letter::whereKey($letter->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            abort_unless(
+                (int) $lockedLetter->sender_unit_id === (int) $user->unit_id,
+                403,
+                'Anda tidak berhak mengedit surat ini.'
+            );
+
+            abort_unless(
+                $lockedLetter->status === 'draft',
+                422,
+                'Surat tidak lagi berstatus draft dan tidak dapat diedit.'
+            );
+
+            $lockedLetter->update([
+                'letter_number' => $validated['letter_number'],
+                'letter_date' => $validated['letter_date'],
+                'origin' => $validated['origin'],
+                'subject' => $validated['subject'],
+                'description' => $validated['description'] ?? null,
+                'receiver_unit_id' => $validated['receiver_unit_id'],
+                'classification_id' => $validated['classification_id'] ?? null,
+            ]);
+
+            $this->recordHistory(
+                $lockedLetter,
+                'draft',
+                'draft',
+                'Data surat draft diperbarui.'
+            );
+        });
+
+        return redirect()
+            ->route('letters.show', $letter->id)
+            ->with('success', 'Data surat berhasil diperbarui.');
+    }
+
+    public function correctStatus(Request $request, $id)
+    {
+        // Hanya Administrator yang boleh mengoreksi status
+        abort_unless($this->isAdmin(), 403);
+
+        // Validasi input
+        $validated = $request->validate([
+            'status' => [
+                'required',
+                Rule::in([
+                    'menunggu_konfirmasi',
+                    'diterima',
+                    'didisposisikan',
+                    'dalam_proses',
+                    'menunggu_tindak_lanjut',
+                    'selesai',
+                    'dibatalkan',
+                ]),
+            ],
+            'reason' => 'required|string|max:1000',
+        ], [
+            'status.required' => 'Status tujuan wajib dipilih.',
+            'status.in' => 'Status yang dipilih tidak valid.',
+            'reason.required' => 'Alasan koreksi wajib diisi.',
+            'reason.max' => 'Alasan koreksi maksimal 1000 karakter.',
+        ]);
+
+        DB::transaction(function () use ($id, $validated) {
+            $letter = Letter::lockForUpdate()->findOrFail($id);
+
+            // Surat draft tidak bisa dikoreksi melalui fitur ini
+            if ($letter->status === 'draft') {
+                abort(403, 'Surat draft tidak dapat dikoreksi melalui fitur ini.');
+            }
+
+            // Status selesai dan dibatalkan bersifat terminal
+            if (in_array($letter->status, ['selesai', 'dibatalkan'])) {
+                abort(403, 'Surat dengan status selesai atau dibatalkan tidak dapat diubah kembali.');
+            }
+
+            // Cegah perubahan ke status yang sama
+            if ($letter->status === $validated['status']) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'status' => 'Status surat sudah sesuai dengan pilihan tersebut.',
+                ]);
+            }
+
+            $oldStatus = $letter->status;
+            $newStatus = $validated['status'];
+
+            // Perbarui status surat
+            $letter->update([
+                'status' => $newStatus,
+            ]);
+
+            // Catat perubahan ke riwayat
+            $this->recordHistory(
+                $letter,
+                $oldStatus,
+                $newStatus,
+                'Koreksi status oleh Administrator. Alasan: ' . $validated['reason']
+            );
+        });
+
+        return redirect()
+            ->route('letters.show', $id)
+            ->with('success', 'Status surat berhasil dikoreksi dan dicatat dalam riwayat.');
+    }
+    /*
+    |--------------------------------------------------------------------------
+    | Menghapus Surat Draft
+    |--------------------------------------------------------------------------
+    */
+    public function destroy($id)
+    {
+        abort_if(
+            $this->isAdmin(),
+            403,
+            'Administrator tidak dapat menghapus surat.'
+        );
+
+        $user = Auth::user();
+
+        abort_if(
+            !$user->unit_id,
+            403,
+            'Akun Anda belum memiliki unit kerja.'
+        );
+
+        $letter = $this->visibleLetters()->findOrFail($id);
+
+        abort_unless(
+            (int) $letter->sender_unit_id === (int) $user->unit_id,
+            403,
+            'Hanya unit pembuat surat yang dapat menghapus surat ini.'
+        );
+
+        DB::transaction(function () use ($letter, $user) {
+            $lockedLetter = Letter::whereKey($letter->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            abort_unless(
+                (int) $lockedLetter->sender_unit_id === (int) $user->unit_id,
+                403,
+                'Anda tidak berhak menghapus surat ini.'
+            );
+
+            abort_unless(
+                $lockedLetter->status === 'draft',
+                422,
+                'Hanya surat berstatus draft yang dapat dihapus.'
+            );
+
+            // Hapus data terkait surat draft terlebih dahulu.
+            DB::table('letter_comments')
+                ->where('letter_id', $lockedLetter->id)
+                ->delete();
+
+            DB::table('letter_follow_ups')
+                ->where('letter_id', $lockedLetter->id)
+                ->delete();
+
+            DB::table('letter_dispositions')
+                ->where('letter_id', $lockedLetter->id)
+                ->delete();
+
+            DB::table('letter_histories')
+                ->where('letter_id', $lockedLetter->id)
+                ->delete();
+
+            $lockedLetter->delete();
+        });
+
+        return redirect()
+            ->route('letters.index')
+            ->with('success', 'Draft surat berhasil dihapus.');
     }
 
     /*

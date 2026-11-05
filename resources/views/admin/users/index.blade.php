@@ -1,6 +1,8 @@
 
 @extends('layouts.app')
 
+@section('title', 'Manajemen Pengguna - SIDILAN')
+
 @section('content')
 <div class="container-fluid">
 
@@ -29,7 +31,7 @@
         </div>
     @endif
 
-    <!-- Form Tambah Pengguna -->
+    {{-- FORM TAMBAH PENGGUNA --}}
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white py-3">
             <h6 class="mb-0">Tambah Pengguna</h6>
@@ -95,7 +97,7 @@
         </div>
     </div>
 
-    <!-- Tabel Pengguna -->
+    {{-- TABEL PENGGUNA --}}
     <div class="card border-0 shadow-sm">
         <div class="card-header bg-white py-3">
             <h6 class="mb-0">Daftar Pengguna</h6>
@@ -185,8 +187,13 @@
                                     </button>
 
                                     <form action="{{ route('admin.users.destroy', $user) }}"
-                                          method="POST" class="d-inline"
-                                          onsubmit="return confirm('Yakin ingin menghapus pengguna ini?')">
+                                          method="POST"
+                                          class="d-inline"
+                                          data-confirm
+                                          data-confirm-title="Hapus Pengguna?"
+                                          data-confirm-message="Yakin ingin menghapus pengguna {{ $user->name }}? Tindakan ini tidak dapat dibatalkan."
+                                          data-confirm-button="Ya, Hapus"
+                                          data-confirm-type="danger">
                                         @csrf
                                         @method('DELETE')
 

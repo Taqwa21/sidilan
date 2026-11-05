@@ -1,3 +1,4 @@
+
 <?php
 
 use Illuminate\Support\Facades\Route;
@@ -122,6 +123,19 @@ Route::middleware('auth')->group(function () {
     Route::post('/surat', [LetterController::class, 'store'])
         ->name('letters.store');
 
+
+    // Edit, update, dan hapus surat draft
+    Route::get('/surat/{id}/edit', [LetterController::class, 'edit'])
+        ->name('letters.edit');
+
+    Route::put('/surat/{id}', [LetterController::class, 'update'])
+        ->name('letters.update');
+
+    Route::delete('/surat/{id}', [LetterController::class, 'destroy'])
+        ->name('letters.destroy');
+
+
+    // Detail surat
     Route::get('/surat/{id}', [LetterController::class, 'show'])
         ->name('letters.show');
 
@@ -179,6 +193,10 @@ Route::middleware('auth')->group(function () {
         ->prefix('admin')
         ->name('admin.')
         ->group(function () {
+
+            // Koreksi Status Surat
+            Route::put('/surat/{id}/koreksi-status', [LetterController::class, 'correctStatus'])
+                ->name('letters.correct-status');
 
             // Unit Kerja
             Route::get('/unit-kerja', [UnitController::class, 'index'])

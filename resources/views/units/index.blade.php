@@ -27,7 +27,7 @@
         </div>
     @endif
 
-    <!-- Form Tambah Unit -->
+    {{-- FORM TAMBAH UNIT --}}
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white py-3">
             <h6 class="mb-0">Tambah Unit Kerja</h6>
@@ -67,7 +67,7 @@
         </div>
     </div>
 
-    <!-- Tabel Unit -->
+    {{-- TABEL UNIT --}}
     <div class="card border-0 shadow-sm">
         <div class="card-header bg-white py-3">
             <h6 class="mb-0">Daftar Unit Kerja</h6>
@@ -133,8 +133,13 @@
                                     </button>
 
                                     <form action="{{ route('admin.units.destroy', $unit) }}"
-                                          method="POST" class="d-inline"
-                                          onsubmit="return confirm('Yakin ingin menghapus unit ini?')">
+                                          method="POST"
+                                          class="d-inline"
+                                          data-confirm
+                                          data-confirm-title="Hapus Unit Kerja?"
+                                          data-confirm-message="Yakin ingin menghapus unit {{ $unit->name }}? Pastikan unit ini tidak lagi digunakan sebelum menghapusnya."
+                                          data-confirm-button="Ya, Hapus"
+                                          data-confirm-type="danger">
                                         @csrf
                                         @method('DELETE')
 
