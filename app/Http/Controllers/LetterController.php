@@ -4,7 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Letter;
 use App\Models\LetterHistory;
+use App\Models\LetterDisposition;
+use App\Models\LetterFollowUp;
+use App\Models\Classification;
 use App\Models\Unit;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -12,65 +16,106 @@ use Illuminate\Validation\Rule;
 
 class LetterController extends Controller
 {
-    // Query surat berdasarkan hak akses pengguna
+    private function isAdmin(): bool
+    {
+        return Auth::user()->role?->slug === 'admin';
+    }
+
     private function visibleLetters()
     {
         $user = Auth::user();
-        $query = Letter::query();
 
-        // Administrator dapat melihat seluruh surat
-        if ($user->role && $user->role->slug === 'admin') {
-            return $query;
+        if ($this->isAdmin()) {
+            return Letter::query();
         }
 
-        // Pengguna hanya melihat surat yang melibatkan unitnya
-        $unitId = $user->unit_id;
-
-        if (!$unitId) {
-            return $query->whereRaw('1 = 0');
+        if (!$user->unit_id) {
+            return Letter::whereRaw('1 = 0');
         }
 
-        return $query->where(function ($q) use ($unitId) {
-            $q->where('sender_unit_id', $unitId)
-              ->orWhere('receiver_unit_id', $unitId);
+        return Letter::where(function ($query) use ($user) {
+            $query->where('sender_unit_id', $user->unit_id)
+                ->orWhere('receiver_unit_id', $user->unit_id);
         });
     }
 
-    // Menampilkan daftar surat
+    private function recordHistory(
+        Letter $letter,
+        string $oldStatus,
+        string $newStatus,
+        ?string $description = null
+    ): void {
+        LetterHistory::create([
+            'letter_id' => $letter->id,
+            'old_status' => $oldStatus,
+            'new_status' => $newStatus,
+            'description' => $description,
+            'changed_by' => Auth::id(),
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Daftar Surat
+    |--------------------------------------------------------------------------
+    */
+
     public function index(Request $request)
     {
+        return $this->letterList(
+            $request,
+            'all',
+            'Daftar Surat',
+            'letters.index'
+        );
+    }
+
+    private function letterList(
+        Request $request,
+        string $direction,
+        string $pageTitle,
+        string $routeName
+    ) {
         $search = $request->input('search');
         $status = $request->input('status');
         $dateFrom = $request->input('date_from');
         $dateTo = $request->input('date_to');
 
-        $letters = $this->visibleLetters()
-            ->with(['creator', 'senderUnit', 'receiverUnit'])
+        $query = $this->visibleLetters();
+
+        $user = Auth::user();
+
+        if (!$this->isAdmin()) {
+            if ($direction === 'incoming') {
+                $query->where('receiver_unit_id', $user->unit_id);
+            } elseif ($direction === 'outgoing') {
+                $query->where('sender_unit_id', $user->unit_id);
+            }
+        } else {
+            if ($direction === 'incoming') {
+                $query->whereNotNull('receiver_unit_id');
+            } elseif ($direction === 'outgoing') {
+                $query->whereNotNull('sender_unit_id');
+            }
+        }
+
+        $letters = $query
+            ->with([
+                'creator',
+                'senderUnit',
+                'receiverUnit',
+                'classification',
+            ])
             ->when($search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('letter_number', 'like', "%{$search}%")
-                      ->orWhere('subject', 'like', "%{$search}%")
-                      ->orWhere('origin', 'like', "%{$search}%")
-                      ->orWhereHas('senderUnit', function ($unit) use ($search) {
-                          $unit->where('name', 'like', "%{$search}%");
-                      })
-                      ->orWhereHas('receiverUnit', function ($unit) use ($search) {
-                          $unit->where('name', 'like', "%{$search}%");
-                      })
-                      ->orWhereHas('creator', function ($creator) use ($search) {
-                          $creator->where('name', 'like', "%{$search}%");
-                      });
+                        ->orWhere('subject', 'like', "%{$search}%")
+                        ->orWhere('origin', 'like', "%{$search}%");
                 });
             })
-            ->when($status, function ($query, $status) {
-                $query->where('status', $status);
-            })
-            ->when($dateFrom, function ($query, $dateFrom) {
-                $query->whereDate('letter_date', '>=', $dateFrom);
-            })
-            ->when($dateTo, function ($query, $dateTo) {
-                $query->whereDate('letter_date', '<=', $dateTo);
-            })
+            ->when($status, fn ($query) => $query->where('status', $status))
+            ->when($dateFrom, fn ($query) => $query->whereDate('letter_date', '>=', $dateFrom))
+            ->when($dateTo, fn ($query) => $query->whereDate('letter_date', '<=', $dateTo))
             ->latest()
             ->paginate(10)
             ->withQueryString();
@@ -80,19 +125,80 @@ class LetterController extends Controller
             'search',
             'status',
             'dateFrom',
-            'dateTo'
+            'dateTo',
+            'pageTitle',
+            'routeName',
+            'direction'
         ));
     }
 
-    // Menampilkan formulir tambah surat
-    public function create()
-    {
-        $units = Unit::orderBy('name')->get();
+    /*
+    |--------------------------------------------------------------------------
+    | Surat Masuk
+    |--------------------------------------------------------------------------
+    */
 
-        return view('letters.create', compact('units'));
+    public function incoming(Request $request)
+    {
+        return $this->letterList(
+            $request,
+            'incoming',
+            'Surat Masuk',
+            'letters.incoming'
+        );
     }
 
-    // Menampilkan detail surat beserta riwayatnya
+    /*
+    |--------------------------------------------------------------------------
+    | Surat Keluar
+    |--------------------------------------------------------------------------
+    */
+
+    public function outgoing(Request $request)
+    {
+        return $this->letterList(
+            $request,
+            'outgoing',
+            'Surat Keluar',
+            'letters.outgoing'
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Form Tambah Surat
+    |--------------------------------------------------------------------------
+    */
+
+    public function create()
+    {
+        abort_if(
+            $this->isAdmin(),
+            403,
+            'Administrator hanya memiliki akses pemantauan.'
+        );
+
+        abort_if(
+            !Auth::user()->unit_id,
+            403,
+            'Akun Anda belum memiliki unit kerja.'
+        );
+
+        $units = Unit::orderBy('name')->get();
+
+        $classifications = Classification::where('is_active', true)
+            ->orderBy('name')
+            ->get();
+
+        return view('letters.create', compact('units', 'classifications'));
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Detail Surat
+    |--------------------------------------------------------------------------
+    */
+
     public function show($id)
     {
         $letter = $this->visibleLetters()
@@ -100,22 +206,61 @@ class LetterController extends Controller
                 'creator',
                 'senderUnit',
                 'receiverUnit',
-                'histories.user'
+                'classification',
+                'sender',
+                'receiver',
+                'histories.user',
+                'dispositions.creator',
+                'dispositions.assignedUnit',
+                'dispositions.assignedUser',
+                'followUps.user',
+                'comments.user',
             ])
             ->findOrFail($id);
 
-        return view('letters.show', compact('letter'));
+        $user = Auth::user();
+
+        $isSender = !$this->isAdmin()
+            && (int) $letter->sender_unit_id === (int) $user->unit_id;
+
+        $isReceiver = !$this->isAdmin()
+            && (int) $letter->receiver_unit_id === (int) $user->unit_id;
+
+        return view('letters.show', compact(
+            'letter',
+            'isSender',
+            'isReceiver'
+        ));
     }
 
-    // Menyimpan surat baru
+    /*
+    |--------------------------------------------------------------------------
+    | Membuat Surat
+    |--------------------------------------------------------------------------
+    */
+
     public function store(Request $request)
     {
+        abort_if(
+            $this->isAdmin(),
+            403,
+            'Administrator tidak dapat membuat surat.'
+        );
+
+        $user = Auth::user();
+
+        abort_if(
+            !$user->unit_id,
+            403,
+            'Akun Anda belum memiliki unit kerja.'
+        );
+
         $validated = $request->validate([
             'letter_number' => [
                 'required',
                 'string',
                 'max:255',
-                'unique:letters,letter_number'
+                'unique:letters,letter_number',
             ],
             'letter_date' => ['required', 'date'],
             'origin' => ['required', 'string', 'max:255'],
@@ -125,85 +270,551 @@ class LetterController extends Controller
             'receiver_unit_id' => [
                 'required',
                 'exists:units,id',
-                'different:sender_unit_id'
+                'different:sender_unit_id',
+            ],
+            'classification_id' => [
+                'nullable',
+                Rule::exists('classifications', 'id')
+                    ->where('is_active', true),
             ],
         ]);
+
+        abort_unless(
+            (int) $validated['sender_unit_id'] === (int) $user->unit_id,
+            403,
+            'Anda hanya dapat membuat surat atas nama unit sendiri.'
+        );
 
         $validated['status'] = 'draft';
-        $validated['created_by'] = Auth::id();
+        $validated['created_by'] = $user->id;
 
-        Letter::create($validated);
+        $letter = DB::transaction(function () use ($validated) {
+            $letter = Letter::create($validated);
 
-        return redirect()
-            ->route('letters.index')
-            ->with('success', 'Surat berhasil ditambahkan.');
-    }
+            $this->recordHistory(
+                $letter,
+                'draft',
+                'draft',
+                'Surat dibuat sebagai draft.'
+            );
 
-    // Mengubah status dan mencatat riwayat
-    public function updateStatus(Request $request, $id)
-    {
-        $validated = $request->validate([
-            'status' => [
-                'required',
-                Rule::in([
-                    'draft',
-                    'terkirim',
-                    'menunggu_konfirmasi',
-                    'diterima',
-                    'dalam_proses',
-                    'didisposisikan',
-                    'menunggu_tindak_lanjut',
-                    'selesai'
-                ])
-            ],
-            'description' => ['nullable', 'string'],
-        ]);
-
-        $user = Auth::user();
-
-        // Cari surat yang memang boleh dilihat pengguna
-        $letter = $this->visibleLetters()->findOrFail($id);
-
-        // Hanya unit penerima yang boleh memperbarui status
-        // Administrator sementara hanya memiliki akses pemantauan
-        if (
-            !$user->unit_id ||
-            (int) $letter->receiver_unit_id !== (int) $user->unit_id
-        ) {
-            abort(403, 'Anda tidak memiliki akses untuk mengubah status surat ini.');
-        }
-
-        DB::transaction(function () use ($letter, $validated, $user) {
-            $oldStatus = $letter->status;
-            $newStatus = $validated['status'];
-            $description = $validated['description'] ?? null;
-
-            // Perbarui status surat
-            $letter->update([
-                'status' => $newStatus,
-            ]);
-
-            // Simpan riwayat jika status berubah atau ada keterangan
-            if (
-                $oldStatus !== $newStatus ||
-                !empty($description)
-            ) {
-                LetterHistory::create([
-                    'letter_id' => $letter->id,
-                    'old_status' => $oldStatus,
-                    'new_status' => $newStatus,
-                    'description' => $description,
-                    'changed_by' => $user->id,
-                ]);
-            }
+            return $letter;
         });
 
         return redirect()
             ->route('letters.show', $letter->id)
-            ->with('success', 'Status dan riwayat surat berhasil diperbarui.');
+            ->with('success', 'Draft surat berhasil dibuat.');
     }
 
-    // Menampilkan seluruh riwayat surat sesuai hak akses
+    /*
+    |--------------------------------------------------------------------------
+    | Mengirim Surat
+    |--------------------------------------------------------------------------
+    */
+
+    public function send($id)
+    {
+        abort_if($this->isAdmin(), 403);
+
+        $user = Auth::user();
+
+        $letter = $this->visibleLetters()->findOrFail($id);
+
+        abort_unless(
+            (int) $letter->sender_unit_id === (int) $user->unit_id,
+            403,
+            'Hanya unit pengirim yang dapat mengirim surat ini.'
+        );
+
+        DB::transaction(function () use ($letter, $user) {
+            $lockedLetter = Letter::whereKey($letter->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            abort_unless(
+                $lockedLetter->status === 'draft',
+                422,
+                'Hanya surat berstatus draft yang dapat dikirim.'
+            );
+
+            $lockedLetter->update([
+                'status' => 'menunggu_konfirmasi',
+                'sent_by' => $user->id,
+                'sent_at' => now(),
+            ]);
+
+            $this->recordHistory(
+                $lockedLetter,
+                'draft',
+                'menunggu_konfirmasi',
+                'Surat dikirim dan menunggu konfirmasi penerimaan.'
+            );
+        });
+
+        return back()->with('success', 'Surat berhasil dikirim.');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Konfirmasi Penerimaan Surat
+    |--------------------------------------------------------------------------
+    */
+
+    public function receive(Request $request, $id)
+    {
+        abort_if($this->isAdmin(), 403);
+
+        $validated = $request->validate([
+            'received_note' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $user = Auth::user();
+
+        $letter = $this->visibleLetters()->findOrFail($id);
+
+        abort_unless(
+            (int) $letter->receiver_unit_id === (int) $user->unit_id,
+            403,
+            'Hanya unit penerima yang dapat mengonfirmasi surat.'
+        );
+
+        DB::transaction(function () use ($letter, $user, $validated) {
+            $lockedLetter = Letter::whereKey($letter->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            abort_unless(
+                $lockedLetter->status === 'menunggu_konfirmasi',
+                422,
+                'Surat belum berada pada tahap konfirmasi penerimaan.'
+            );
+
+            $note = $validated['received_note'] ?? null;
+
+            $lockedLetter->update([
+                'status' => 'diterima',
+                'received_by' => $user->id,
+                'received_at' => now(),
+                'received_note' => $note,
+            ]);
+
+            $this->recordHistory(
+                $lockedLetter,
+                'menunggu_konfirmasi',
+                'diterima',
+                filled($note) ? $note : 'Surat telah diterima.'
+            );
+        });
+
+        return back()->with(
+            'success',
+            'Penerimaan surat berhasil dikonfirmasi.'
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Membuat Disposisi
+    |--------------------------------------------------------------------------
+    */
+
+    public function storeDisposition(Request $request, $id)
+    {
+        abort_if($this->isAdmin(), 403);
+
+        $validated = $request->validate([
+            'instruction' => ['required', 'string', 'max:5000'],
+            'assigned_to_unit_id' => [
+                'nullable',
+                'exists:units,id',
+            ],
+            'assigned_to_user_id' => [
+                'nullable',
+                'exists:users,id',
+            ],
+        ]);
+
+        $user = Auth::user();
+
+        $letter = $this->visibleLetters()->findOrFail($id);
+
+        abort_unless(
+            (int) $letter->receiver_unit_id === (int) $user->unit_id,
+            403,
+            'Hanya unit penerima yang dapat membuat disposisi.'
+        );
+
+        if (!empty($validated['assigned_to_unit_id'])) {
+            abort_unless(
+                (int) $validated['assigned_to_unit_id'] === (int) $user->unit_id,
+                422,
+                'Unit tujuan disposisi harus sesuai dengan unit penerima.'
+            );
+        }
+
+        if (!empty($validated['assigned_to_user_id'])) {
+            $assignedUser = User::findOrFail(
+                $validated['assigned_to_user_id']
+            );
+
+            abort_unless(
+                (int) $assignedUser->unit_id === (int) $user->unit_id,
+                422,
+                'Pegawai tujuan harus berasal dari unit penerima.'
+            );
+        }
+
+        DB::transaction(function () use ($letter, $user, $validated) {
+            $lockedLetter = Letter::whereKey($letter->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            abort_unless(
+                in_array($lockedLetter->status, ['diterima', 'dalam_proses']),
+                422,
+                'Surat harus diterima sebelum didisposisikan.'
+            );
+
+            LetterDisposition::create([
+                'letter_id' => $lockedLetter->id,
+                'created_by' => $user->id,
+                'assigned_to_unit_id' => $validated['assigned_to_unit_id'] ?? null,
+                'assigned_to_user_id' => $validated['assigned_to_user_id'] ?? null,
+                'instruction' => $validated['instruction'],
+                'status' => 'aktif',
+                'disposed_at' => now(),
+            ]);
+
+            $oldStatus = $lockedLetter->status;
+
+            $lockedLetter->update([
+                'status' => 'didisposisikan',
+            ]);
+
+            $this->recordHistory(
+                $lockedLetter,
+                $oldStatus,
+                'didisposisikan',
+                'Surat telah didisposisikan.'
+            );
+        });
+
+        return back()->with('success', 'Disposisi berhasil disimpan.');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Daftar Disposisi
+    |--------------------------------------------------------------------------
+    */
+
+    public function dispositions(Request $request)
+    {
+        $search = $request->input('search');
+
+        $letters = $this->visibleLetters()
+            ->whereHas('dispositions')
+            ->with([
+                'senderUnit',
+                'receiverUnit',
+                'classification',
+                'dispositions.creator',
+                'dispositions.assignedUnit',
+                'dispositions.assignedUser',
+            ])
+            ->when($search, function ($query, $search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('letter_number', 'like', "%{$search}%")
+                        ->orWhere('subject', 'like', "%{$search}%")
+                        ->orWhereHas('dispositions', function ($disposition) use ($search) {
+                            $disposition->where('instruction', 'like', "%{$search}%");
+                        });
+                });
+            })
+            ->latest()
+            ->paginate(10)
+            ->withQueryString();
+
+        return view('letters.dispositions', compact(
+            'letters',
+            'search'
+        ));
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Mencatat Tindak Lanjut
+    |--------------------------------------------------------------------------
+    */
+
+    public function storeFollowUp(Request $request, $id)
+    {
+        abort_if($this->isAdmin(), 403);
+
+        $validated = $request->validate([
+            'description' => ['required', 'string', 'max:5000'],
+            'progress_status' => [
+                'required',
+                Rule::in([
+                    'dalam_proses',
+                    'menunggu_tindak_lanjut',
+                    'selesai',
+                ]),
+            ],
+        ]);
+
+        $user = Auth::user();
+
+        $letter = $this->visibleLetters()->findOrFail($id);
+
+        abort_unless(
+            (int) $letter->receiver_unit_id === (int) $user->unit_id,
+            403,
+            'Hanya unit penerima yang dapat memperbarui tindak lanjut.'
+        );
+
+        DB::transaction(function () use ($letter, $user, $validated) {
+            $lockedLetter = Letter::whereKey($letter->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $allowedCurrentStatuses = [
+                'diterima',
+                'didisposisikan',
+                'dalam_proses',
+                'menunggu_tindak_lanjut',
+            ];
+
+            abort_unless(
+                in_array($lockedLetter->status, $allowedCurrentStatuses),
+                422,
+                'Surat belum dapat ditindaklanjuti atau sudah selesai.'
+            );
+
+            $oldStatus = $lockedLetter->status;
+            $newStatus = $validated['progress_status'];
+
+            LetterFollowUp::create([
+                'letter_id' => $lockedLetter->id,
+                'user_id' => $user->id,
+                'progress_status' => $newStatus,
+                'description' => $validated['description'],
+            ]);
+
+            $lockedLetter->update([
+                'status' => $newStatus,
+            ]);
+
+            $this->recordHistory(
+                $lockedLetter,
+                $oldStatus,
+                $newStatus,
+                $validated['description']
+            );
+        });
+
+        return back()->with(
+            'success',
+            'Tindak lanjut berhasil dicatat.'
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Daftar Tindak Lanjut
+    |--------------------------------------------------------------------------
+    */
+
+    public function followUps(Request $request)
+    {
+        $search = $request->input('search');
+
+        $letters = $this->visibleLetters()
+            ->whereHas('followUps')
+            ->with([
+                'senderUnit',
+                'receiverUnit',
+                'classification',
+                'followUps.user',
+            ])
+            ->when($search, function ($query, $search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('letter_number', 'like', "%{$search}%")
+                        ->orWhere('subject', 'like', "%{$search}%")
+                        ->orWhereHas('followUps', function ($followUp) use ($search) {
+                            $followUp->where('description', 'like', "%{$search}%");
+                        });
+                });
+            })
+            ->latest()
+            ->paginate(10)
+            ->withQueryString();
+
+        return view('letters.followups', compact(
+            'letters',
+            'search'
+        ));
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Monitoring Surat
+    |--------------------------------------------------------------------------
+    */
+
+    public function monitoring(Request $request)
+    {
+        $search = $request->input('search');
+        $status = $request->input('status');
+
+        $query = $this->visibleLetters()
+            ->with([
+                'senderUnit',
+                'receiverUnit',
+                'classification',
+            ]);
+
+        if ($request->filled('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('letter_number', 'like', "%{$search}%")
+                    ->orWhere('subject', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $status);
+        }
+
+        $summaryQuery = $this->visibleLetters();
+
+        $total = (clone $summaryQuery)->count();
+
+        $menunggu = (clone $summaryQuery)
+            ->whereIn('status', [
+                'terkirim',
+                'menunggu_konfirmasi',
+            ])
+            ->count();
+
+        $dalamProses = (clone $summaryQuery)
+            ->whereIn('status', [
+                'diterima',
+                'didisposisikan',
+                'dalam_proses',
+                'menunggu_tindak_lanjut',
+            ])
+            ->count();
+
+        $selesai = (clone $summaryQuery)
+            ->where('status', 'selesai')
+            ->count();
+
+        $letters = $query
+            ->latest()
+            ->paginate(15)
+            ->withQueryString();
+
+        return view('letters.monitoring', compact(
+            'letters',
+            'search',
+            'status',
+            'total',
+            'menunggu',
+            'dalamProses',
+            'selesai'
+        ));
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Laporan Surat
+    |--------------------------------------------------------------------------
+    */
+
+    public function reports(Request $request)
+    {
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
+
+        $query = $this->visibleLetters()
+            ->with([
+                'senderUnit',
+                'receiverUnit',
+            ]);
+
+        if ($dateFrom) {
+            $query->whereDate('letter_date', '>=', $dateFrom);
+        }
+
+        if ($dateTo) {
+            $query->whereDate('letter_date', '<=', $dateTo);
+        }
+
+        $allLetters = $query->get();
+
+        $total = $allLetters->count();
+
+        $selesai = $allLetters
+            ->where('status', 'selesai')
+            ->count();
+
+        $dalamProses = $allLetters
+            ->whereIn('status', [
+                'diterima',
+                'didisposisikan',
+                'dalam_proses',
+                'menunggu_tindak_lanjut',
+            ])
+            ->count();
+
+        $menunggu = $allLetters
+            ->whereIn('status', [
+                'terkirim',
+                'menunggu_konfirmasi',
+            ])
+            ->count();
+
+        // Ubah hasil menjadi object agar sesuai dengan Blade
+        // yang mengakses data menggunakan ->status dan ->total.
+        $perStatus = $allLetters
+            ->groupBy('status')
+            ->map(function ($items, $status) {
+                return (object) [
+                    'status' => $status,
+                    'total' => $items->count(),
+                ];
+            })
+            ->values();
+
+        // Rekap surat berdasarkan unit pengirim.
+        $perUnit = $allLetters
+            ->groupBy('sender_unit_id')
+            ->map(function ($items) {
+                return (object) [
+                    'unit' => $items->first()->senderUnit?->name ?? 'Tidak diketahui',
+                    'total' => $items->count(),
+                ];
+            })
+            ->values();
+
+        return view('letters.reports', compact(
+            'dateFrom',
+            'dateTo',
+            'total',
+            'selesai',
+            'dalamProses',
+            'menunggu',
+            'perStatus',
+            'perUnit'
+        ));
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Riwayat Surat
+    |--------------------------------------------------------------------------
+    */
+
     public function history(Request $request)
     {
         $visibleLetterIds = $this->visibleLetters()

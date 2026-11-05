@@ -1,3 +1,4 @@
+
 @extends('layouts.app')
 
 @section('title', 'Tambah Surat - SIDILAN')
@@ -31,6 +32,7 @@
                                 </option>
                             @endforeach
                         </select>
+
                         @error('sender_unit_id')
                             <div class="text-danger small">{{ $message }}</div>
                         @enderror
@@ -48,6 +50,7 @@
                                 </option>
                             @endforeach
                         </select>
+
                         @error('receiver_unit_id')
                             <div class="text-danger small">{{ $message }}</div>
                         @enderror
@@ -68,23 +71,45 @@
                         placeholder="Contoh: 001/BNPB/LOG/2026"
                         required
                     >
+
                     @error('letter_number')
                         <div class="text-danger small">{{ $message }}</div>
                     @enderror
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label">Tanggal Surat</label>
-                    <input
-                        type="date"
-                        name="letter_date"
-                        class="form-control"
-                        value="{{ old('letter_date') }}"
-                        required
-                    >
-                    @error('letter_date')
-                        <div class="text-danger small">{{ $message }}</div>
-                    @enderror
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Tanggal Surat</label>
+                        <input
+                            type="date"
+                            name="letter_date"
+                            class="form-control"
+                            value="{{ old('letter_date') }}"
+                            required
+                        >
+
+                        @error('letter_date')
+                            <div class="text-danger small">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Klasifikasi Surat</label>
+                        <select name="classification_id" class="form-select">
+                            <option value="">Pilih Klasifikasi</option>
+
+                            @foreach($classifications as $classification)
+                                <option value="{{ $classification->id }}"
+                                    @selected(old('classification_id') == $classification->id)>
+                                    {{ $classification->name }}
+                                </option>
+                            @endforeach
+                        </select>
+
+                        @error('classification_id')
+                            <div class="text-danger small">{{ $message }}</div>
+                        @enderror
+                    </div>
                 </div>
 
                 <div class="mb-3">
@@ -97,6 +122,7 @@
                         placeholder="Contoh: BNPB Logistik"
                         required
                     >
+
                     @error('origin')
                         <div class="text-danger small">{{ $message }}</div>
                     @enderror
@@ -112,6 +138,7 @@
                         placeholder="Masukkan perihal surat"
                         required
                     >
+
                     @error('subject')
                         <div class="text-danger small">{{ $message }}</div>
                     @enderror
@@ -121,12 +148,14 @@
                     <label class="form-label">
                         Keterangan <span class="text-muted">(Opsional)</span>
                     </label>
+
                     <textarea
                         name="description"
                         class="form-control"
                         rows="4"
                         placeholder="Tambahkan keterangan jika diperlukan"
                     >{{ old('description') }}</textarea>
+
                     @error('description')
                         <div class="text-danger small">{{ $message }}</div>
                     @enderror

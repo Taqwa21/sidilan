@@ -12,9 +12,10 @@ class Unit extends Model
         'code',
         'description',
     ];
-    public function users()
+
+    public function users(): HasMany
     {
-        return $this->hasMany(\App\Models\User::class);
+        return $this->hasMany(User::class);
     }
 
     public function sentLetters(): HasMany
@@ -25,5 +26,13 @@ class Unit extends Model
     public function receivedLetters(): HasMany
     {
         return $this->hasMany(Letter::class, 'receiver_unit_id');
+    }
+
+    public function assignedDispositions(): HasMany
+    {
+        return $this->hasMany(
+            LetterDisposition::class,
+            'assigned_to_unit_id'
+        );
     }
 }

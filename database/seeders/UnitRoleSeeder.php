@@ -9,56 +9,65 @@ class UnitRoleSeeder extends Seeder
 {
     public function run(): void
     {
-        // Data unit kerja
-        DB::table('units')->updateOrInsert(
-            ['code' => 'LOGISTIK'],
+        $units = [
             [
                 'name' => 'BNPB Logistik',
+                'code' => 'LOGISTIK',
                 'description' => 'Unit BNPB Logistik',
-                'updated_at' => now(),
-                'created_at' => now(),
-            ]
-        );
-
-        DB::table('units')->updateOrInsert(
-            ['code' => 'PUSAT'],
+            ],
             [
                 'name' => 'BNPB Pusat',
+                'code' => 'PUSAT',
                 'description' => 'Unit BNPB Pusat',
-                'updated_at' => now(),
-                'created_at' => now(),
-            ]
-        );
+            ],
+        ];
 
-        // Data role pengguna
-        DB::table('roles')->updateOrInsert(
-            ['slug' => 'admin'],
+        foreach ($units as $unit) {
+            $exists = DB::table('units')
+                ->where('code', $unit['code'])
+                ->exists();
+
+            if (!$exists) {
+                DB::table('units')->insert([
+                    ...$unit,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+
+        $roles = [
             [
                 'name' => 'Administrator',
-                'description' => 'Mengelola seluruh aplikasi',
-                'updated_at' => now(),
-                'created_at' => now(),
-            ]
-        );
-
-        DB::table('roles')->updateOrInsert(
-            ['slug' => 'logistik'],
+                'slug' => 'admin',
+                'description' => 'Mengelola seluruh sistem',
+            ],
             [
                 'name' => 'Logistik',
-                'description' => 'Mengelola dan memantau surat dari BNPB Logistik',
-                'updated_at' => now(),
-                'created_at' => now(),
-            ]
-        );
-
-        DB::table('roles')->updateOrInsert(
-            ['slug' => 'pusat'],
+                'slug' => 'logistik',
+                'description' => 'Petugas BNPB Logistik',
+            ],
             [
                 'name' => 'Pusat',
-                'description' => 'Mengelola penerimaan, disposisi, dan tindak lanjut surat',
-                'updated_at' => now(),
-                'created_at' => now(),
-            ]
-        );
+                'slug' => 'pusat',
+                'description' => 'Petugas BNPB Pusat',
+            ],
+        ];
+
+        foreach ($roles as $role) {
+            $exists = DB::table('roles')
+                ->where('slug', $role['slug'])
+                ->exists();
+
+            if (!$exists) {
+                DB::table('roles')->insert([
+                    ...$role,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+
+        $this->command->info('Pemeriksaan unit dan role selesai.');
     }
 }

@@ -7,15 +7,17 @@
     {{-- Header --}}
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h3>Daftar Surat</h3>
+            <h3>{{ $pageTitle ?? 'Daftar Surat' }}</h3>
             <p class="text-muted mb-0">
                 Monitoring surat BNPB Logistik dan BNPB Pusat
             </p>
         </div>
 
-        <a href="{{ route('letters.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus-lg"></i> Tambah Surat
-        </a>
+        @if(auth()->user()->role?->slug !== 'admin')
+            <a href="{{ route('letters.create') }}" class="btn btn-primary">
+                <i class="bi bi-plus-lg"></i> Tambah Surat
+            </a>
+        @endif
     </div>
 
     {{-- Notifikasi --}}
@@ -29,8 +31,11 @@
         <div class="card-body">
 
             {{-- Form Pencarian dan Filter --}}
-            <form action="{{ route('letters.index') }}" method="GET" class="mb-4">
-
+            <form
+                action="{{ route($routeName ?? 'letters.index') }}"
+                method="GET"
+                class="mb-4"
+            >
                 <div class="row g-2">
 
                     {{-- Pencarian --}}
@@ -49,37 +54,27 @@
                         <select name="status" class="form-select">
                             <option value="">Semua Status</option>
 
-                            <option value="draft" {{ ($status ?? '') == 'draft' ? 'selected' : '' }}>
-                                Draft
-                            </option>
+                            @php
+                                $statuses = [
+                                    'draft' => 'Draft',
+                                    'terkirim' => 'Terkirim',
+                                    'menunggu_konfirmasi' => 'Menunggu Konfirmasi',
+                                    'diterima' => 'Diterima',
+                                    'didisposisikan' => 'Didisposisikan',
+                                    'dalam_proses' => 'Dalam Proses',
+                                    'menunggu_tindak_lanjut' => 'Menunggu Tindak Lanjut',
+                                    'selesai' => 'Selesai',
+                                ];
+                            @endphp
 
-                            <option value="terkirim" {{ ($status ?? '') == 'terkirim' ? 'selected' : '' }}>
-                                Terkirim
-                            </option>
-
-                            <option value="menunggu_konfirmasi" {{ ($status ?? '') == 'menunggu_konfirmasi' ? 'selected' : '' }}>
-                                Menunggu Konfirmasi
-                            </option>
-
-                            <option value="diterima" {{ ($status ?? '') == 'diterima' ? 'selected' : '' }}>
-                                Diterima
-                            </option>
-
-                            <option value="dalam_proses" {{ ($status ?? '') == 'dalam_proses' ? 'selected' : '' }}>
-                                Dalam Proses
-                            </option>
-
-                            <option value="didisposisikan" {{ ($status ?? '') == 'didisposisikan' ? 'selected' : '' }}>
-                                Didisposisikan
-                            </option>
-
-                            <option value="menunggu_tindak_lanjut" {{ ($status ?? '') == 'menunggu_tindak_lanjut' ? 'selected' : '' }}>
-                                Menunggu Tindak Lanjut
-                            </option>
-
-                            <option value="selesai" {{ ($status ?? '') == 'selesai' ? 'selected' : '' }}>
-                                Selesai
-                            </option>
+                            @foreach($statuses as $value => $label)
+                                <option
+                                    value="{{ $value }}"
+                                    {{ ($status ?? '') === $value ? 'selected' : '' }}
+                                >
+                                    {{ $label }}
+                                </option>
+                            @endforeach
                         </select>
                     </div>
 
@@ -111,7 +106,10 @@
                             <i class="bi bi-search"></i> Cari
                         </button>
 
-                        <a href="{{ route('letters.index') }}" class="btn btn-outline-secondary">
+                        <a
+                            href="{{ route($routeName ?? 'letters.index') }}"
+                            class="btn btn-outline-secondary"
+                        >
                             Reset
                         </a>
                     </div>
@@ -153,7 +151,7 @@
                                 </td>
 
                                 <td>
-                                    {{ $letter->letter_date->format('d/m/Y') }}
+                                    {{ $letter->letter_date?->format('d/m/Y') ?? '-' }}
                                 </td>
 
                                 <td>
@@ -173,8 +171,24 @@
                                 </td>
 
                                 <td>
-                                    <span class="badge bg-secondary">
-                                        {{ ucfirst(str_replace('_', ' ', $letter->status)) }}
+                                    @php
+                                        $statusColors = [
+                                            'draft' => 'secondary',
+                                            'terkirim' => 'info',
+                                            'menunggu_konfirmasi' => 'warning',
+                                            'diterima' => 'primary',
+                                            'didisposisikan' => 'info',
+                                            'dalam_proses' => 'primary',
+                                            'menunggu_tindak_lanjut' => 'warning',
+                                            'selesai' => 'success',
+                                        ];
+
+                                        $statusLabel = $statuses[$letter->status]
+                                            ?? ucfirst(str_replace('_', ' ', $letter->status));
+                                    @endphp
+
+                                    <span class="badge bg-{{ $statusColors[$letter->status] ?? 'secondary' }}">
+                                        {{ $statusLabel }}
                                     </span>
                                 </td>
                             </tr>
@@ -182,7 +196,7 @@
                         @empty
                             <tr>
                                 <td colspan="8" class="text-center py-4 text-muted">
-                                    Tidak ada Daftar Surat yang ditemukan.
+                                    Tidak ada surat yang ditemukan.
                                 </td>
                             </tr>
                         @endforelse

@@ -31,6 +31,7 @@
             color: white;
             z-index: 1000;
             padding: 25px 15px;
+            overflow-y: auto;
         }
 
         .brand {
@@ -149,6 +150,7 @@
 
     <aside class="sidebar">
 
+        {{-- Brand --}}
         <div class="brand">
             <div class="brand-icon">
                 <i class="bi bi-envelope-paper"></i>
@@ -160,6 +162,7 @@
             </div>
         </div>
 
+        {{-- Menu Utama --}}
         <div class="nav-label">Menu Utama</div>
 
         <a href="{{ route('dashboard') }}"
@@ -168,10 +171,40 @@
             <span class="nav-text">Dashboard</span>
         </a>
 
-        <a href="{{ route('letters.index') }}"
-           class="nav-link {{ request()->routeIs('letters.index', 'letters.create', 'letters.show') ? 'active' : '' }}">
-            <i class="bi bi-envelope me-2"></i>
-            <span class="nav-text">Daftar Surat</span>
+        <a href="{{ route('letters.incoming') }}"
+           class="nav-link {{ request()->routeIs('letters.incoming') ? 'active' : '' }}">
+            <i class="bi bi-inbox me-2"></i>
+            <span class="nav-text">Surat Masuk</span>
+        </a>
+
+        <a href="{{ route('letters.outgoing') }}"
+           class="nav-link {{ request()->routeIs('letters.outgoing') ? 'active' : '' }}">
+            <i class="bi bi-send me-2"></i>
+            <span class="nav-text">Surat Keluar</span>
+        </a>
+
+        <a href="{{ route('dispositions.index') }}"
+           class="nav-link {{ request()->routeIs('dispositions.*') ? 'active' : '' }}">
+            <i class="bi bi-diagram-3 me-2"></i>
+            <span class="nav-text">Disposisi</span>
+        </a>
+
+        <a href="{{ route('followups.index') }}"
+           class="nav-link {{ request()->routeIs('followups.*') ? 'active' : '' }}">
+            <i class="bi bi-list-check me-2"></i>
+            <span class="nav-text">Tindak Lanjut</span>
+        </a>
+
+        <a href="{{ route('monitoring.index') }}"
+           class="nav-link {{ request()->routeIs('monitoring.*') ? 'active' : '' }}">
+            <i class="bi bi-graph-up me-2"></i>
+            <span class="nav-text">Monitoring</span>
+        </a>
+
+        <a href="{{ route('reports.index') }}"
+           class="nav-link {{ request()->routeIs('reports.*') ? 'active' : '' }}">
+            <i class="bi bi-file-earmark-bar-graph me-2"></i>
+            <span class="nav-text">Laporan</span>
         </a>
 
         <a href="{{ route('letters.history') }}"
@@ -180,6 +213,7 @@
             <span class="nav-text">Riwayat Surat</span>
         </a>
 
+        {{-- Menu Administrasi Khusus Admin --}}
         @if(Auth::user()->role?->slug === 'admin')
 
             <div class="nav-label">Administrasi</div>
@@ -204,6 +238,7 @@
 
         @endif
 
+        {{-- Logout --}}
         <div class="mt-5 pt-4 border-top border-secondary">
             <form action="{{ route('logout') }}" method="POST">
                 @csrf
@@ -218,6 +253,7 @@
 
     </aside>
 
+    {{-- Konten Utama --}}
     <main class="main-content">
 
         <div class="topbar d-flex justify-content-between align-items-center mb-4">

@@ -14,12 +14,14 @@ class StaffUserSeeder extends Seeder
             [
                 'name' => 'Petugas Logistik',
                 'email' => 'logistik@sidilan.local',
+                'password' => 'Sidilan2026!',
                 'role' => 'logistik',
                 'unit' => 'LOGISTIK',
             ],
             [
                 'name' => 'Petugas Pusat',
                 'email' => 'pusat@sidilan.local',
+                'password' => 'Sidilan2026!',
                 'role' => 'pusat',
                 'unit' => 'PUSAT',
             ],
@@ -36,20 +38,35 @@ class StaffUserSeeder extends Seeder
 
             if (!$roleId || !$unitId) {
                 throw new \RuntimeException(
-                    'Role atau unit tidak ditemukan untuk ' . $account['name']
+                    "Role atau unit untuk {$account['email']} belum tersedia."
                 );
             }
 
-            DB::table('users')->updateOrInsert(
-                ['email' => $account['email']],
-                [
-                    'name' => $account['name'],
-                    'password' => Hash::make('Sidilan2026!'),
-                    'role_id' => $roleId,
-                    'unit_id' => $unitId,
-                    'email_verified_at' => now(),
-                    'updated_at' => now(),
-                ]
+            $exists = DB::table('users')
+                ->where('email', $account['email'])
+                ->exists();
+
+            if ($exists) {
+                $this->command->info(
+                    "Akun {$account['email']} sudah tersedia. Tidak ada perubahan."
+                );
+
+                continue;
+            }
+
+            DB::table('users')->insert([
+                'name' => $account['name'],
+                'email' => $account['email'],
+                'password' => Hash::make($account['password']),
+                'role_id' => $roleId,
+                'unit_id' => $unitId,
+                'email_verified_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            $this->command->info(
+                "Akun {$account['email']} berhasil dibuat."
             );
         }
     }

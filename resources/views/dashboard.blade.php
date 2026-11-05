@@ -92,7 +92,7 @@
         <div class="col-md-8">
             <div class="card shadow-sm border-0 h-100">
                 <div class="card-body">
-                    <h5 class="mb-3">Statistik Surat per Bulan</h5>
+                    <h5 class="mb-3">Statistik Surat</h5>
 
                     <div style="height: 300px;">
                         <canvas
