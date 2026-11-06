@@ -25,6 +25,7 @@ class LetterController extends Controller
     {
         $user = Auth::user();
 
+        // Admin dapat melihat semua surat, termasuk Draft.
         if ($this->isAdmin()) {
             return Letter::query();
         }
@@ -34,8 +35,16 @@ class LetterController extends Controller
         }
 
         return Letter::where(function ($query) use ($user) {
+
+            // Unit pengirim tetap dapat melihat surat miliknya.
             $query->where('sender_unit_id', $user->unit_id)
-                ->orWhere('receiver_unit_id', $user->unit_id);
+
+                // Unit penerima hanya dapat melihat surat yang sudah dikirim.
+                ->orWhere(function ($receiverQuery) use ($user) {
+                    $receiverQuery
+                        ->where('receiver_unit_id', $user->unit_id)
+                        ->where('status', '!=', 'draft');
+                });
         });
     }
 
@@ -343,12 +352,16 @@ class LetterController extends Controller
             ->with('success', 'Data surat berhasil diperbarui.');
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Koreksi Status oleh Administrator
+    |--------------------------------------------------------------------------
+    */
+
     public function correctStatus(Request $request, $id)
     {
-        // Hanya Administrator yang boleh mengoreksi status
         abort_unless($this->isAdmin(), 403);
 
-        // Validasi input
         $validated = $request->validate([
             'status' => [
                 'required',
@@ -373,17 +386,14 @@ class LetterController extends Controller
         DB::transaction(function () use ($id, $validated) {
             $letter = Letter::lockForUpdate()->findOrFail($id);
 
-            // Surat draft tidak bisa dikoreksi melalui fitur ini
             if ($letter->status === 'draft') {
                 abort(403, 'Surat draft tidak dapat dikoreksi melalui fitur ini.');
             }
 
-            // Status selesai dan dibatalkan bersifat terminal
             if (in_array($letter->status, ['selesai', 'dibatalkan'])) {
                 abort(403, 'Surat dengan status selesai atau dibatalkan tidak dapat diubah kembali.');
             }
 
-            // Cegah perubahan ke status yang sama
             if ($letter->status === $validated['status']) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
                     'status' => 'Status surat sudah sesuai dengan pilihan tersebut.',
@@ -393,12 +403,10 @@ class LetterController extends Controller
             $oldStatus = $letter->status;
             $newStatus = $validated['status'];
 
-            // Perbarui status surat
             $letter->update([
                 'status' => $newStatus,
             ]);
 
-            // Catat perubahan ke riwayat
             $this->recordHistory(
                 $letter,
                 $oldStatus,
@@ -411,11 +419,13 @@ class LetterController extends Controller
             ->route('letters.show', $id)
             ->with('success', 'Status surat berhasil dikoreksi dan dicatat dalam riwayat.');
     }
+
     /*
     |--------------------------------------------------------------------------
     | Menghapus Surat Draft
     |--------------------------------------------------------------------------
     */
+
     public function destroy($id)
     {
         abort_if(
@@ -457,7 +467,6 @@ class LetterController extends Controller
                 'Hanya surat berstatus draft yang dapat dihapus.'
             );
 
-            // Hapus data terkait surat draft terlebih dahulu.
             DB::table('letter_comments')
                 ->where('letter_id', $lockedLetter->id)
                 ->delete();
@@ -484,6 +493,68 @@ class LetterController extends Controller
 
     /*
     |--------------------------------------------------------------------------
+    | Memperbarui Posisi Surat
+    |--------------------------------------------------------------------------
+    */
+
+    public function updatePosition(Request $request, $id)
+    {
+        abort_if($this->isAdmin(), 403);
+
+        $validated = $request->validate([
+            'position' => 'required|string|max:255',
+        ]);
+
+        $user = Auth::user();
+
+        $letter = $this->visibleLetters()->findOrFail($id);
+
+        $isSender = (int) $letter->sender_unit_id === (int) $user->unit_id;
+        $isReceiver = (int) $letter->receiver_unit_id === (int) $user->unit_id;
+
+        abort_unless(
+            $isSender || $isReceiver,
+            403,
+            'Anda tidak memiliki akses untuk mengubah posisi surat.'
+        );
+
+        DB::transaction(function () use ($letter, $validated) {
+            $lockedLetter = Letter::whereKey($letter->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            abort_unless(
+                !in_array($lockedLetter->status, ['selesai', 'dibatalkan']),
+                422,
+                'Posisi surat yang sudah selesai atau dibatalkan tidak dapat diubah.'
+            );
+
+            $oldPosition = $lockedLetter->position;
+            $newPosition = trim($validated['position']);
+
+            if ($oldPosition === $newPosition) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'position' => 'Posisi surat tidak mengalami perubahan.',
+                ]);
+            }
+
+            $lockedLetter->update([
+                'position' => $newPosition,
+            ]);
+
+            $this->recordHistory(
+                $lockedLetter,
+                $lockedLetter->status,
+                $lockedLetter->status,
+                'Posisi surat diubah dari "' . ($oldPosition ?? '-') . '" menjadi "' . $newPosition . '".'
+            );
+        });
+
+        return back()->with('success', 'Posisi surat berhasil diperbarui.');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
     | Detail Surat
     |--------------------------------------------------------------------------
     */
@@ -502,7 +573,9 @@ class LetterController extends Controller
                 'dispositions.creator',
                 'dispositions.assignedUnit',
                 'dispositions.assignedUser',
+                'dispositions.targets',
                 'followUps.user',
+                'followUps.attachments.uploader',
                 'comments.user',
             ])
             ->findOrFail($id);
@@ -515,10 +588,14 @@ class LetterController extends Controller
         $isReceiver = !$this->isAdmin()
             && (int) $letter->receiver_unit_id === (int) $user->unit_id;
 
+        $dispositionTargets = \App\Models\DispositionTarget::orderBy('code')
+            ->get();
+
         return view('letters.show', compact(
             'letter',
             'isSender',
-            'isReceiver'
+            'isReceiver',
+            'dispositionTargets'
         ));
     }
 
@@ -545,6 +622,7 @@ class LetterController extends Controller
         );
 
         $validated = $request->validate([
+            'agenda_number' => ['nullable', 'string', 'max:255'],
             'letter_number' => [
                 'required',
                 'string',
@@ -713,6 +791,8 @@ class LetterController extends Controller
 
         $validated = $request->validate([
             'instruction' => ['required', 'string', 'max:5000'],
+            'target_units' => ['required', 'string', 'max:5000'],
+            'deadline_at' => ['nullable', 'date'],
             'assigned_to_unit_id' => [
                 'nullable',
                 'exists:units,id',
@@ -764,15 +844,20 @@ class LetterController extends Controller
                 'Surat harus diterima sebelum didisposisikan.'
             );
 
-            LetterDisposition::create([
+            $disposition = LetterDisposition::create([
                 'letter_id' => $lockedLetter->id,
                 'created_by' => $user->id,
                 'assigned_to_unit_id' => $validated['assigned_to_unit_id'] ?? null,
                 'assigned_to_user_id' => $validated['assigned_to_user_id'] ?? null,
                 'instruction' => $validated['instruction'],
+                'target_units' => $validated['target_units'],
                 'status' => 'aktif',
                 'disposed_at' => now(),
+                'deadline_at' => $validated['deadline_at'] ?? null,
             ]);
+
+            // Relasi target lama tetap dipertahankan.
+            // Tidak ada penghapusan data disposisi sebelumnya.
 
             $oldStatus = $lockedLetter->status;
 
@@ -810,13 +895,16 @@ class LetterController extends Controller
                 'dispositions.creator',
                 'dispositions.assignedUnit',
                 'dispositions.assignedUser',
+                'dispositions.targets',
             ])
             ->when($search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('letter_number', 'like', "%{$search}%")
                         ->orWhere('subject', 'like', "%{$search}%")
                         ->orWhereHas('dispositions', function ($disposition) use ($search) {
-                            $disposition->where('instruction', 'like', "%{$search}%");
+                            $disposition
+                                ->where('instruction', 'like', "%{$search}%")
+                                ->orWhere('target_units', 'like', "%{$search}%");
                         });
                 });
             })
@@ -956,24 +1044,47 @@ class LetterController extends Controller
         $search = $request->input('search');
         $status = $request->input('status');
 
+        /*
+         * Data surat untuk tabel monitoring.
+         * Semua relasi yang dibutuhkan dimuat sekaligus agar
+         * tidak terjadi query berulang saat Blade menampilkan data.
+         */
         $query = $this->visibleLetters()
             ->with([
                 'senderUnit',
                 'receiverUnit',
                 'classification',
+                'dispositions.targets',
+                'followUps.user',
+                'followUps.attachments',
+                'histories.user',
             ]);
 
+        /*
+         * Pencarian monitoring.
+         */
         if ($request->filled('search')) {
             $query->where(function ($q) use ($search) {
-                $q->where('letter_number', 'like', "%{$search}%")
-                    ->orWhere('subject', 'like', "%{$search}%");
+                $q->where('agenda_number', 'like', "%{$search}%")
+                    ->orWhere('letter_number', 'like', "%{$search}%")
+                    ->orWhere('subject', 'like', "%{$search}%")
+                    ->orWhere('origin', 'like', "%{$search}%")
+                    ->orWhere('position', 'like', "%{$search}%");
             });
         }
 
+        /*
+         * Filter status.
+         */
         if ($request->filled('status')) {
             $query->where('status', $status);
         }
 
+        /*
+         * Ringkasan statistik.
+         * Menggunakan visibleLetters() agar angka yang ditampilkan
+         * tetap mengikuti hak akses pengguna.
+         */
         $summaryQuery = $this->visibleLetters();
 
         $total = (clone $summaryQuery)->count();
@@ -998,6 +1109,24 @@ class LetterController extends Controller
             ->where('status', 'selesai')
             ->count();
 
+        /*
+         * Persentase penyelesaian surat.
+         */
+        $persentaseSelesai = $total > 0
+            ? round(($selesai / $total) * 100, 1)
+            : 0;
+
+        /*
+         * Surat dibatalkan tetap dihitung terpisah,
+         * tidak dimasukkan sebagai surat selesai.
+         */
+        $dibatalkan = (clone $summaryQuery)
+            ->where('status', 'dibatalkan')
+            ->count();
+
+        /*
+         * Ambil data surat dengan pagination.
+         */
         $letters = $query
             ->latest()
             ->paginate(15)
@@ -1010,7 +1139,9 @@ class LetterController extends Controller
             'total',
             'menunggu',
             'dalamProses',
-            'selesai'
+            'selesai',
+            'persentaseSelesai',
+            'dibatalkan'
         ));
     }
 
@@ -1063,8 +1194,6 @@ class LetterController extends Controller
             ])
             ->count();
 
-        // Ubah hasil menjadi object agar sesuai dengan Blade
-        // yang mengakses data menggunakan ->status dan ->total.
         $perStatus = $allLetters
             ->groupBy('status')
             ->map(function ($items, $status) {
@@ -1075,7 +1204,6 @@ class LetterController extends Controller
             })
             ->values();
 
-        // Rekap surat berdasarkan unit pengirim.
         $perUnit = $allLetters
             ->groupBy('sender_unit_id')
             ->map(function ($items) {
@@ -1104,23 +1232,32 @@ class LetterController extends Controller
     |--------------------------------------------------------------------------
     */
 
+
     public function history(Request $request)
     {
+        $search = $request->input('search');
+
         $visibleLetterIds = $this->visibleLetters()
             ->select('letters.id');
 
-        $search = $request->input('search');
-
-        $histories = LetterHistory::with(['letter', 'user'])
+        $histories = LetterHistory::with([
+            'letter.senderUnit',
+            'letter.receiverUnit',
+            'user',
+        ])
             ->whereIn('letter_id', $visibleLetterIds)
-            ->when($search, function ($query, $search) {
+            ->when($search, function ($query) use ($search) {
                 $query->where(function ($q) use ($search) {
-                    $q->where('new_status', 'like', "%{$search}%")
+                    $q->where('old_status', 'like', "%{$search}%")
+                        ->orWhere('new_status', 'like', "%{$search}%")
                         ->orWhere('description', 'like', "%{$search}%")
+
                         ->orWhereHas('letter', function ($letter) use ($search) {
-                            $letter->where('letter_number', 'like', "%{$search}%")
+                            $letter->where('agenda_number', 'like', "%{$search}%")
+                                ->orWhere('letter_number', 'like', "%{$search}%")
                                 ->orWhere('subject', 'like', "%{$search}%");
                         })
+
                         ->orWhereHas('user', function ($user) use ($search) {
                             $user->where('name', 'like', "%{$search}%");
                         });

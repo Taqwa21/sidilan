@@ -16,9 +16,19 @@
             'dibatalkan' => 'Dibatalkan',
         ];
 
+        $documentTypeLabels = [
+            'surat_asli' => 'Surat Asli',
+            'bukti_penerimaan' => 'Bukti Penerimaan',
+            'bukti_tindak_lanjut' => 'Bukti Tindak Lanjut',
+        ];
+
         $currentStatus = $letter->status;
         $isFinished = in_array($currentStatus, ['selesai', 'dibatalkan']);
         $isAdmin = auth()->user()->role?->slug === 'admin';
+
+        $canUploadReceipt = !$isAdmin && $isReceiver && !$isFinished && $currentStatus !== 'draft';
+
+        $canUpdatePosition = !$isAdmin && ($isSender || $isReceiver) && !$isFinished;
     @endphp
 
     <div class="container-fluid">
@@ -83,6 +93,13 @@
             <div class="card-body p-4">
 
                 <h5 class="mb-4">Informasi Surat</h5>
+
+                <div class="row mb-3">
+                    <div class="col-md-3 text-muted">Nomor Agenda</div>
+                    <div class="col-md-9">
+                        {{ $letter->agenda_number ?? '-' }}
+                    </div>
+                </div>
 
                 <div class="row mb-3">
                     <div class="col-md-3 text-muted">Nomor Surat</div>
@@ -154,6 +171,13 @@
                 </div>
 
                 <div class="row mb-3">
+                    <div class="col-md-3 text-muted">Posisi Surat</div>
+                    <div class="col-md-9">
+                        {{ $letter->position ?? '-' }}
+                    </div>
+                </div>
+
+                <div class="row mb-3">
                     <div class="col-md-3 text-muted">Dikirim Oleh</div>
                     <div class="col-md-9">
                         {{ $letter->sender->name ?? '-' }}
@@ -205,6 +229,345 @@
             </div>
         </div>
 
+        {{-- PERBARUI POSISI SURAT --}}
+        @if ($canUpdatePosition)
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body p-4">
+                    <h5 class="mb-2">Perbarui Posisi Surat</h5>
+                    <p class="text-muted">
+                        Perbarui lokasi atau tahapan fisik surat sesuai kondisi terakhir.
+                        Perubahan posisi tidak mengubah status utama surat.
+                    </p>
+
+                    <form action="{{ route('letters.position.update', $letter->id) }}" method="POST">
+                        @csrf
+                        @method('PUT')
+
+                        <div class="row align-items-end g-3">
+                            <div class="col-md-8">
+                                <label for="position" class="form-label">Posisi Surat</label>
+                                <input type="text" name="position" id="position"
+                                    class="form-control @error('position') is-invalid @enderror"
+                                    value="{{ old('position', $letter->position) }}"
+                                    placeholder="Masukkan posisi atau lokasi surat saat ini" required>
+                                @error('position')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="col-md-4">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-save me-1"></i>
+                                    Simpan Posisi
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endif
+
+        {{-- DOKUMEN SURAT --}}
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-file-earmark-pdf me-2"></i>
+                    Dokumen Surat
+                </h5>
+            </div>
+
+            <div class="card-body p-4">
+
+                <p class="text-muted small mb-3">
+                    Dokumen resmi surat yang dikirim oleh unit pengirim.
+                    Seluruh dokumen menggunakan format PDF.
+                </p>
+
+                {{-- UPLOAD SURAT ASLI --}}
+                @if (!$isAdmin && $isSender && $currentStatus === 'draft')
+                    <div class="border rounded p-3 mb-4">
+                        <h6 class="mb-2">Upload Surat Asli</h6>
+
+                        <p class="text-muted small">
+                            Unggah salinan resmi surat dalam format PDF.
+                            Dokumen ini nantinya dapat dilihat oleh unit penerima.
+                        </p>
+
+                        @if (!$letter->attachments->where('document_type', 'surat_asli')->count())
+                            <form action="{{ route('letters.attachments.store', $letter->id) }}" method="POST"
+                                enctype="multipart/form-data">
+                                @csrf
+
+                                <input type="hidden" name="document_type" value="surat_asli">
+
+                                <div class="mb-3">
+                                    <input type="file" name="files[]" class="form-control"
+                                        accept=".pdf,application/pdf" multiple required>
+                                    <small class="text-muted">
+                                        Format PDF saja. Maksimal 10 MB per file.
+                                    </small>
+                                </div>
+
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-upload me-1"></i>
+                                    Upload Surat Asli
+                                </button>
+                            </form>
+                        @else
+                            <div class="alert alert-info mb-0">
+                                Surat asli sudah diunggah. Hapus dokumen lama terlebih dahulu jika ingin menggantinya.
+                            </div>
+                        @endif
+                    </div>
+                @endif
+
+                {{-- DAFTAR SURAT ASLI --}}
+                <h6 class="mb-3">Daftar Dokumen</h6>
+
+                @php
+                    $mainAttachments = $letter->attachments
+                        ->where('document_type', 'surat_asli')
+                        ->sortByDesc('created_at');
+                @endphp
+
+                @forelse ($mainAttachments as $attachment)
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 border-bottom py-3">
+
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="text-danger fs-3">
+                                <i class="bi bi-file-earmark-pdf"></i>
+                            </div>
+
+                            <div>
+                                <div class="fw-semibold">
+                                    {{ $attachment->original_name }}
+                                </div>
+
+                                <div class="small text-muted">
+                                    Surat Asli
+                                    ·
+                                    {{ $attachment->uploader->name ?? 'Pengguna tidak tersedia' }}
+                                    ·
+                                    {{ $attachment->created_at?->format('d M Y, H:i') }}
+                                </div>
+
+                                <div class="small text-muted">
+                                    {{ number_format($attachment->file_size / 1024, 2) }} KB
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2 flex-wrap">
+                            @if ($attachment->mime_type === 'application/pdf')
+                                <a href="{{ route('letters.attachments.show', $attachment->id) }}" target="_blank"
+                                    rel="noopener" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-eye me-1"></i>
+                                    Lihat
+                                </a>
+                            @endif
+
+                            <a href="{{ route('letters.attachments.download', $attachment->id) }}"
+                                class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-download me-1"></i>
+                                Download
+                            </a>
+
+                            @if (!$isFinished && ($isAdmin || (int) $attachment->uploaded_by === (int) auth()->id()))
+                                <form action="{{ route('letters.attachments.destroy', $attachment->id) }}" method="POST"
+                                    data-confirm data-confirm-title="Hapus Dokumen?"
+                                    data-confirm-message="Apakah Anda yakin ingin menghapus dokumen ini?"
+                                    data-confirm-button="Ya, Hapus" data-confirm-type="danger">
+                                    @csrf
+                                    @method('DELETE')
+
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            @endif
+                        </div>
+
+                    </div>
+                @empty
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-file-earmark-x fs-1"></i>
+                        <p class="mt-2 mb-0">
+                            Belum ada surat asli yang diunggah.
+                        </p>
+                    </div>
+                @endforelse
+
+            </div>
+        </div>
+
+        {{-- KONFIRMASI PENERIMAAN DAN BUKTI --}}
+        @if ($isReceiver && $currentStatus !== 'draft')
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0">
+                        <i class="bi bi-clipboard-check me-2"></i>
+                        Konfirmasi Penerimaan
+                    </h5>
+                </div>
+
+                <div class="card-body p-4">
+
+                    <p class="text-muted">
+                        Konfirmasikan penerimaan surat dan unggah bukti penerimaan dalam satu bagian.
+                    </p>
+
+                    {{-- FORM KONFIRMASI --}}
+                    @if ($currentStatus === 'menunggu_konfirmasi')
+                        <div class="border rounded p-3 mb-4">
+                            <h6 class="mb-2">Konfirmasi Surat Diterima</h6>
+
+                            <p class="text-muted small">
+                                Konfirmasikan apabila surat sudah benar-benar diterima oleh unit Anda.
+                            </p>
+
+                            <form action="{{ route('letters.receive', $letter->id) }}" method="POST" data-confirm
+                                data-confirm-title="Konfirmasi Penerimaan?"
+                                data-confirm-message="Pastikan surat sudah benar-benar diterima oleh unit Anda."
+                                data-confirm-button="Ya, Diterima" data-confirm-type="success">
+                                @csrf
+
+                                <div class="mb-3">
+                                    <label class="form-label">
+                                        Catatan Penerimaan (Opsional)
+                                    </label>
+
+                                    <textarea name="received_note" class="form-control" rows="3"
+                                        placeholder="Tambahkan catatan penerimaan jika diperlukan">{{ old('received_note') }}</textarea>
+
+                                    @error('received_note')
+                                        <div class="text-danger small">{{ $message }}</div>
+                                    @enderror
+                                </div>
+
+                                <button type="submit" class="btn btn-success">
+                                    <i class="bi bi-check-circle me-1"></i>
+                                    Konfirmasi Diterima
+                                </button>
+                            </form>
+                        </div>
+                    @elseif ($letter->received_at)
+                        <div class="alert alert-success mb-4">
+                            <i class="bi bi-check-circle me-1"></i>
+                            Surat telah diterima oleh
+                            {{ $letter->receiver->name ?? 'petugas penerima' }}
+                            pada
+                            {{ $letter->received_at->format('d F Y, H:i') }}.
+                        </div>
+                    @endif
+
+                    {{-- FORM UPLOAD BUKTI PENERIMAAN --}}
+                    @if ($canUploadReceipt)
+                        <div class="border rounded p-3 mb-4">
+                            <h6 class="mb-2">Upload Bukti Penerimaan</h6>
+
+                            <p class="text-muted small">
+                                Unggah tanda terima, surat yang sudah distempel,
+                                atau dokumen pendukung penerimaan lainnya.
+                            </p>
+
+                            <form action="{{ route('letters.attachments.store', $letter->id) }}" method="POST"
+                                enctype="multipart/form-data">
+                                @csrf
+
+                                <input type="hidden" name="document_type" value="bukti_penerimaan">
+
+                                <div class="mb-3">
+                                    <input type="file" name="files[]" class="form-control"
+                                        accept=".pdf,application/pdf" multiple required>
+                                    <small class="text-muted">
+                                        Format PDF saja. Maksimal 10 file, masing-masing maksimal 10 MB.
+                                    </small>
+                                </div>
+
+                                <button type="submit" class="btn btn-outline-success">
+                                    <i class="bi bi-upload me-1"></i>
+                                    Upload Bukti Penerimaan
+                                </button>
+                            </form>
+                        </div>
+                    @endif
+
+                    {{-- DAFTAR BUKTI PENERIMAAN --}}
+                    <h6 class="mb-3">Dokumen Bukti Penerimaan</h6>
+
+                    @php
+                        $receiptAttachments = $letter->attachments
+                            ->where('document_type', 'bukti_penerimaan')
+                            ->sortByDesc('created_at');
+                    @endphp
+
+                    @forelse ($receiptAttachments as $attachment)
+                        <div
+                            class="d-flex align-items-center justify-content-between flex-wrap gap-3 border rounded p-3 mb-2">
+
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="text-danger fs-3">
+                                    <i class="bi bi-file-earmark-pdf"></i>
+                                </div>
+
+                                <div>
+                                    <div class="fw-semibold">
+                                        {{ $attachment->original_name }}
+                                    </div>
+
+                                    <div class="small text-muted">
+                                        {{ $attachment->uploader->name ?? 'Pengguna tidak tersedia' }}
+                                        ·
+                                        {{ $attachment->created_at?->format('d M Y, H:i') }}
+                                    </div>
+
+                                    <div class="small text-muted">
+                                        {{ number_format($attachment->file_size / 1024, 2) }} KB
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex gap-2 flex-wrap">
+                                @if ($attachment->mime_type === 'application/pdf')
+                                    <a href="{{ route('letters.attachments.show', $attachment->id) }}" target="_blank"
+                                        rel="noopener" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye me-1"></i>
+                                        Lihat
+                                    </a>
+                                @endif
+
+                                <a href="{{ route('letters.attachments.download', $attachment->id) }}"
+                                    class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-download me-1"></i>
+                                    Download
+                                </a>
+
+                                @if (!$isFinished && ($isAdmin || (int) $attachment->uploaded_by === (int) auth()->id()))
+                                    <form action="{{ route('letters.attachments.destroy', $attachment->id) }}"
+                                        method="POST" data-confirm data-confirm-title="Hapus Bukti Penerimaan?"
+                                        data-confirm-message="Yakin ingin menghapus bukti penerimaan ini?"
+                                        data-confirm-button="Ya, Hapus" data-confirm-type="danger">
+                                        @csrf
+                                        @method('DELETE')
+
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                @endif
+                            </div>
+
+                        </div>
+                    @empty
+                        <p class="text-muted small mb-0">
+                            Belum ada bukti penerimaan yang diunggah.
+                        </p>
+                    @endforelse
+
+                </div>
+            </div>
+        @endif
+
         {{-- KOREKSI STATUS KHUSUS ADMIN --}}
         @if ($isAdmin)
             <div class="card border-0 shadow-sm mb-4">
@@ -231,8 +594,8 @@
                             Setiap koreksi akan tercatat dalam riwayat surat.
                         </p>
 
-                        <form action="{{ route('admin.letters.correct-status', $letter->id) }}" method="POST" data-confirm
-                            data-confirm-title="Koreksi Status Surat?"
+                        <form action="{{ route('admin.letters.correct-status', $letter->id) }}" method="POST"
+                            data-confirm data-confirm-title="Koreksi Status Surat?"
                             data-confirm-message="Apakah Anda yakin ingin mengoreksi status surat ini? Perubahan akan dicatat dalam riwayat."
                             data-confirm-button="Ya, Koreksi" data-confirm-type="primary">
 
@@ -328,51 +691,16 @@
             </div>
         @endif
 
-        {{-- KONFIRMASI PENERIMAAN --}}
-        @if ($isReceiver && $currentStatus === 'menunggu_konfirmasi')
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-body p-4">
-
-                    <h5 class="mb-2">Konfirmasi Penerimaan Surat</h5>
-                    <p class="text-muted">
-                        Konfirmasikan apabila surat sudah diterima oleh unit Anda.
-                    </p>
-
-                    <form action="{{ route('letters.receive', $letter->id) }}" method="POST" data-confirm
-                        data-confirm-title="Konfirmasi Penerimaan?"
-                        data-confirm-message="Pastikan surat sudah benar-benar diterima oleh unit Anda."
-                        data-confirm-button="Ya, Diterima" data-confirm-type="success">
-                        @csrf
-
-                        <div class="mb-3">
-                            <label class="form-label">
-                                Catatan Penerimaan (Opsional)
-                            </label>
-
-                            <textarea name="received_note" class="form-control" rows="3"
-                                placeholder="Tambahkan catatan penerimaan jika diperlukan">{{ old('received_note') }}</textarea>
-
-                            @error('received_note')
-                                <div class="text-danger small">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <button type="submit" class="btn btn-success">
-                            <i class="bi bi-check-circle me-1"></i>
-                            Konfirmasi Diterima
-                        </button>
-                    </form>
-
-                </div>
-            </div>
-        @endif
-
         {{-- DISPOSISI --}}
         @if ($isReceiver && in_array($currentStatus, ['diterima', 'dalam_proses']))
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-body p-4">
 
-                    <h5 class="mb-2">Disposisi Surat</h5>
+                    <h5 class="mb-2">
+                        <i class="bi bi-share me-2"></i>
+                        Disposisi Surat
+                    </h5>
+
                     <p class="text-muted">
                         Berikan instruksi atau arahan tindak lanjut terhadap surat ini.
                     </p>
@@ -381,10 +709,41 @@
                         @csrf
 
                         <div class="mb-3">
-                            <label class="form-label">Instruksi Disposisi</label>
+                            <label for="target_units" class="form-label">Tujuan Disposisi</label>
 
-                            <textarea name="instruction" class="form-control" rows="4" placeholder="Tuliskan instruksi disposisi..."
-                                required>{{ old('instruction') }}</textarea>
+                            <input type="text" name="target_units" id="target_units"
+                                class="form-control @error('target_units') is-invalid @enderror"
+                                value="{{ old('target_units') }}" placeholder="Contoh: PLP, OJLP atau keterangan lainnya"
+                                required>
+
+                            <small class="text-muted">
+                                Isi bebas sesuai tujuan atau keterangan disposisi.
+                            </small>
+
+                            @error('target_units')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">
+                                Batas Waktu Penyelesaian
+                                <span class="text-muted">(Opsional)</span>
+                            </label>
+
+                            <input type="datetime-local" name="deadline_at" class="form-control"
+                                value="{{ old('deadline_at') }}">
+
+                            @error('deadline_at')
+                                <div class="text-danger small">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Isi Disposisi</label>
+
+                            <textarea name="instruction" class="form-control @error('instruction') is-invalid @enderror" rows="4"
+                                placeholder="Tuliskan instruksi disposisi..." required>{{ old('instruction') }}</textarea>
 
                             @error('instruction')
                                 <div class="text-danger small">{{ $message }}</div>
@@ -394,70 +753,6 @@
                         <button type="submit" class="btn btn-warning">
                             <i class="bi bi-share me-1"></i>
                             Simpan Disposisi
-                        </button>
-                    </form>
-
-                </div>
-            </div>
-        @endif
-
-        {{-- TINDAK LANJUT --}}
-        @if (
-            $isReceiver &&
-                !$isFinished &&
-                in_array($currentStatus, ['diterima', 'dalam_proses', 'didisposisikan', 'menunggu_tindak_lanjut']))
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-body p-4">
-
-                    <h5 class="mb-2">Tindak Lanjut Surat</h5>
-                    <p class="text-muted">
-                        Catat perkembangan penanganan surat oleh unit penerima.
-                    </p>
-
-                    <form action="{{ route('letters.followups.store', $letter->id) }}" method="POST" data-confirm
-                        data-confirm-title="Simpan Tindak Lanjut?"
-                        data-confirm-message="Apakah Anda yakin ingin menyimpan perkembangan tindak lanjut ini?"
-                        data-confirm-button="Ya, Simpan" data-confirm-type="primary">
-                        @csrf
-
-                        <div class="mb-3">
-                            <label class="form-label">Status Tindak Lanjut</label>
-
-                            <select name="progress_status" class="form-select" required>
-                                <option value="">Pilih Status</option>
-
-                                <option value="dalam_proses" @selected(old('progress_status') === 'dalam_proses')>
-                                    Dalam Proses
-                                </option>
-
-                                <option value="menunggu_tindak_lanjut" @selected(old('progress_status') === 'menunggu_tindak_lanjut')>
-                                    Menunggu Tindak Lanjut
-                                </option>
-
-                                <option value="selesai" @selected(old('progress_status') === 'selesai')>
-                                    Selesai
-                                </option>
-                            </select>
-
-                            @error('progress_status')
-                                <div class="text-danger small">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Keterangan Perkembangan</label>
-
-                            <textarea name="description" class="form-control" rows="4"
-                                placeholder="Jelaskan perkembangan tindak lanjut..." required>{{ old('description') }}</textarea>
-
-                            @error('description')
-                                <div class="text-danger small">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-save me-1"></i>
-                            Simpan Tindak Lanjut
                         </button>
                     </form>
 
@@ -493,6 +788,37 @@
                             {{ $disposition->creator->name ?? '-' }}
                         </div>
 
+                        @if ($disposition->deadline_at)
+                            <div class="small mt-2">
+                                <i class="bi bi-calendar-event me-1"></i>
+                                Batas Waktu Penyelesaian:
+                                <span class="fw-semibold">
+                                    {{ $disposition->deadline_at->format('d F Y, H:i') }}
+                                </span>
+                            </div>
+                        @else
+                            <div class="small text-muted mt-2">
+                                Batas Waktu Penyelesaian: Tidak ditentukan
+                            </div>
+                        @endif
+
+                        @if ($disposition->target_units)
+                            <div class="small text-muted mt-2">
+                                Tujuan Disposisi:
+                                <span class="text-dark">{{ $disposition->target_units }}</span>
+                            </div>
+                        @elseif ($disposition->targets->isNotEmpty())
+                            <div class="small text-muted mt-2">
+                                Tujuan Disposisi:
+
+                                @foreach ($disposition->targets as $target)
+                                    <span class="badge bg-warning text-dark me-1">
+                                        {{ $target->code }}
+                                    </span>
+                                @endforeach
+                            </div>
+                        @endif
+
                         @if ($disposition->assignedUnit)
                             <div class="small text-muted">
                                 Unit tujuan:
@@ -522,46 +848,206 @@
             </div>
         </div>
 
-        {{-- RIWAYAT TINDAK LANJUT --}}
+        {{-- TINDAK LANJUT DAN RIWAYATNYA --}}
         <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-check me-2"></i>
+                    Tindak Lanjut Surat
+                </h5>
+            </div>
+
             <div class="card-body p-4">
 
-                <h5 class="mb-3">Riwayat Tindak Lanjut</h5>
+                {{-- FORM TAMBAH TINDAK LANJUT --}}
+                @if (
+                    $isReceiver &&
+                        !$isFinished &&
+                        in_array($currentStatus, ['diterima', 'dalam_proses', 'didisposisikan', 'menunggu_tindak_lanjut']))
+                    <div class="border rounded p-3 mb-4">
+                        <h6 class="mb-2">Tambah Aktivitas Tindak Lanjut</h6>
+
+                        <p class="text-muted small">
+                            Catat perkembangan penanganan surat oleh unit penerima.
+                        </p>
+
+                        <form action="{{ route('letters.followups.store', $letter->id) }}" method="POST" data-confirm
+                            data-confirm-title="Simpan Tindak Lanjut?"
+                            data-confirm-message="Apakah Anda yakin ingin menyimpan perkembangan tindak lanjut ini?"
+                            data-confirm-button="Ya, Simpan" data-confirm-type="primary">
+                            @csrf
+
+                            <div class="mb-3">
+                                <label class="form-label">Status Tindak Lanjut</label>
+
+                                <select name="progress_status" class="form-select" required>
+                                    <option value="">Pilih Status</option>
+
+                                    <option value="dalam_proses" @selected(old('progress_status') === 'dalam_proses')>
+                                        Dalam Proses
+                                    </option>
+
+                                    <option value="menunggu_tindak_lanjut" @selected(old('progress_status') === 'menunggu_tindak_lanjut')>
+                                        Menunggu Tindak Lanjut
+                                    </option>
+
+                                    <option value="selesai" @selected(old('progress_status') === 'selesai')>
+                                        Selesai
+                                    </option>
+                                </select>
+
+                                @error('progress_status')
+                                    <div class="text-danger small">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Keterangan Perkembangan</label>
+
+                                <textarea name="description" class="form-control" rows="4"
+                                    placeholder="Jelaskan perkembangan tindak lanjut..." required>{{ old('description') }}</textarea>
+
+                                @error('description')
+                                    <div class="text-danger small">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save me-1"></i>
+                                Simpan Tindak Lanjut
+                            </button>
+                        </form>
+                    </div>
+                @endif
+
+                {{-- DAFTAR RIWAYAT TINDAK LANJUT --}}
+                <h6 class="mb-3">Riwayat Aktivitas</h6>
 
                 @forelse($letter->followUps as $followUp)
-                    <div class="d-flex gap-3 mb-4">
+                    <div class="border rounded p-3 mb-3">
 
-                        <div class="text-primary">
-                            <i class="bi bi-clock-history fs-4"></i>
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <span class="fw-semibold">
+                                <i class="bi bi-clock-history text-primary me-1"></i>
+                                {{ $statusLabels[$followUp->progress_status] ?? ucfirst($followUp->progress_status) }}
+                            </span>
+
+                            <small class="text-muted">
+                                {{ $followUp->created_at?->format('d F Y, H:i') ?? '-' }}
+                            </small>
                         </div>
 
-                        <div class="flex-grow-1 border-bottom pb-3">
-
-                            <div class="d-flex justify-content-between flex-wrap gap-2">
-                                <span class="fw-semibold">
-                                    {{ $statusLabels[$followUp->progress_status] ?? ucfirst($followUp->progress_status) }}
-                                </span>
-
-                                <small class="text-muted">
-                                    {{ $followUp->created_at?->format('d F Y, H:i') ?? '-' }}
-                                </small>
-                            </div>
-
-                            <div class="small text-muted mt-2">
-                                Petugas:
-                                {{ $followUp->user->name ?? '-' }}
-                            </div>
-
-                            <div class="bg-light rounded p-3 mt-3">
-                                {{ $followUp->description }}
-                            </div>
-
+                        <div class="small text-muted mt-2">
+                            Petugas:
+                            {{ $followUp->user->name ?? '-' }}
                         </div>
+
+                        <div class="bg-light rounded p-3 mt-3">
+                            {{ $followUp->description }}
+                        </div>
+
+                        {{-- BUKTI UNTUK AKTIVITAS INI --}}
+                        <div class="mt-3">
+                            <h6 class="mb-2">
+                                <i class="bi bi-paperclip me-1"></i>
+                                Bukti Aktivitas
+                            </h6>
+
+                            @forelse ($followUp->attachments as $attachment)
+                                <div
+                                    class="d-flex justify-content-between align-items-center flex-wrap gap-2 border rounded p-2 mb-2">
+
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="bi bi-file-earmark-pdf text-danger fs-4"></i>
+
+                                        <div>
+                                            <div class="small fw-semibold">
+                                                {{ $attachment->original_name }}
+                                            </div>
+
+                                            <div class="small text-muted">
+                                                {{ $attachment->uploader->name ?? 'Pengguna' }}
+                                                ·
+                                                {{ $attachment->created_at?->format('d M Y, H:i') }}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex gap-2">
+                                        @if ($attachment->mime_type === 'application/pdf')
+                                            <a href="{{ route('letters.attachments.show', $attachment->id) }}"
+                                                target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye"></i>
+                                                Lihat
+                                            </a>
+                                        @endif
+
+                                        <a href="{{ route('letters.attachments.download', $attachment->id) }}"
+                                            class="btn btn-sm btn-outline-secondary">
+                                            <i class="bi bi-download"></i>
+                                            Download
+                                        </a>
+
+                                        @if (!$isFinished && ($isAdmin || (int) $attachment->uploaded_by === (int) auth()->id()))
+                                            <form action="{{ route('letters.attachments.destroy', $attachment->id) }}"
+                                                method="POST" data-confirm data-confirm-title="Hapus Bukti?"
+                                                data-confirm-message="Yakin ingin menghapus bukti tindak lanjut ini?"
+                                                data-confirm-button="Ya, Hapus" data-confirm-type="danger">
+                                                @csrf
+                                                @method('DELETE')
+
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        @endif
+                                    </div>
+
+                                </div>
+                            @empty
+                                <p class="text-muted small mb-2">
+                                    Belum ada bukti untuk aktivitas ini.
+                                </p>
+                            @endforelse
+
+                            {{-- FORM UPLOAD BUKTI PER AKTIVITAS --}}
+                            @if (!$isAdmin && $isReceiver && !$isFinished)
+                                <div class="border rounded p-3 mt-3">
+                                    <form action="{{ route('letters.attachments.store', $letter->id) }}" method="POST"
+                                        enctype="multipart/form-data">
+                                        @csrf
+
+                                        <input type="hidden" name="document_type" value="bukti_tindak_lanjut">
+                                        <input type="hidden" name="letter_follow_up_id" value="{{ $followUp->id }}">
+
+                                        <label class="form-label small">
+                                            Upload bukti untuk aktivitas ini
+                                        </label>
+
+                                        <input type="file" name="files[]" class="form-control form-control-sm mb-2"
+                                            accept=".pdf,application/pdf" multiple required>
+
+                                        <small class="text-muted d-block mb-2">
+                                            Format PDF saja. Maksimal 10 file, masing-masing maksimal 10 MB.
+                                        </small>
+
+                                        <button type="submit" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-upload me-1"></i>
+                                            Upload Bukti Aktivitas
+                                        </button>
+                                    </form>
+                                </div>
+                            @endif
+                        </div>
+
                     </div>
                 @empty
-                    <p class="text-muted mb-0">
-                        Belum ada catatan tindak lanjut.
-                    </p>
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-clipboard-x fs-1"></i>
+                        <p class="mt-2 mb-0">
+                            Belum ada catatan tindak lanjut.
+                        </p>
+                    </div>
                 @endforelse
 
             </div>
@@ -571,48 +1057,75 @@
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-body p-4">
 
-                <h5 class="mb-1">Riwayat Perubahan Status</h5>
+                <h5 class="mb-1">Riwayat Aktivitas Surat</h5>
                 <p class="text-muted small mb-4">
-                    Seluruh aktivitas dan perubahan status surat.
+                    Catatan perubahan status dan aktivitas dokumen surat.
                 </p>
 
                 @forelse($letter->histories as $history)
+
+                    @php
+                        $isDocumentActivity =
+                            $history->old_status === $history->new_status &&
+                            $history->description &&
+                            str_contains(strtolower($history->description), 'dokumen');
+                    @endphp
+
                     <div class="d-flex gap-3 mb-4">
 
-                        <div class="text-primary">
-                            <i class="bi bi-clock-history fs-4"></i>
+                        <div class="{{ $isDocumentActivity ? 'text-warning' : 'text-primary' }}">
+                            <i
+                                class="bi {{ $isDocumentActivity ? 'bi-file-earmark-check' : 'bi-arrow-left-right' }} fs-4"></i>
                         </div>
 
                         <div class="flex-grow-1 border-bottom pb-3">
 
                             <div class="d-flex justify-content-between flex-wrap gap-2">
-                                <span class="fw-semibold">
-                                    {{ $statusLabels[$history->new_status] ?? ucfirst($history->new_status) }}
-                                </span>
+                                <div>
+                                    @if ($isDocumentActivity)
+                                        <span class="badge bg-warning text-dark mb-1">
+                                            Aktivitas Dokumen
+                                        </span>
+                                    @else
+                                        <span class="badge bg-primary mb-1">
+                                            Perubahan Status
+                                        </span>
+                                    @endif
+
+                                    <div class="fw-semibold">
+                                        @if ($isDocumentActivity)
+                                            {{ $history->description }}
+                                        @else
+                                            {{ $statusLabels[$history->new_status] ?? ucfirst($history->new_status) }}
+                                        @endif
+                                    </div>
+                                </div>
 
                                 <small class="text-muted">
                                     {{ $history->created_at?->format('d F Y, H:i') ?? '-' }}
                                 </small>
                             </div>
 
+                            @if (!$isDocumentActivity)
+                                <div class="small text-muted mt-2">
+                                    @if ($history->old_status)
+                                        {{ $statusLabels[$history->old_status] ?? ucfirst($history->old_status) }}
+                                    @else
+                                        Status awal
+                                    @endif
+
+                                    <i class="bi bi-arrow-right mx-1"></i>
+
+                                    {{ $statusLabels[$history->new_status] ?? ucfirst($history->new_status) }}
+                                </div>
+                            @endif
+
                             <div class="small text-muted mt-2">
-                                @if ($history->old_status)
-                                    {{ $statusLabels[$history->old_status] ?? ucfirst($history->old_status) }}
-                                @else
-                                    Status awal
-                                @endif
-
-                                <i class="bi bi-arrow-right mx-1"></i>
-
-                                {{ $statusLabels[$history->new_status] ?? ucfirst($history->new_status) }}
-                            </div>
-
-                            <div class="small mt-2">
                                 <i class="bi bi-person-circle me-1"></i>
                                 {{ $history->user->name ?? 'Pengguna tidak tersedia' }}
                             </div>
 
-                            @if ($history->description)
+                            @if ($history->description && !$isDocumentActivity)
                                 <div class="bg-light rounded p-3 mt-3">
                                     <div class="small text-muted mb-1">
                                         Keterangan
@@ -623,11 +1136,12 @@
 
                         </div>
                     </div>
+
                 @empty
                     <div class="text-center py-4 text-muted">
                         <i class="bi bi-clock-history fs-1"></i>
                         <p class="mt-2 mb-0">
-                            Belum ada riwayat perubahan status.
+                            Belum ada riwayat aktivitas surat.
                         </p>
                     </div>
                 @endforelse

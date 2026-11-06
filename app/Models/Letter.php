@@ -9,12 +9,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Letter extends Model
 {
     protected $fillable = [
+        'agenda_number',
         'letter_number',
         'letter_date',
         'origin',
         'subject',
         'description',
         'status',
+        'position',
         'created_by',
         'sender_unit_id',
         'receiver_unit_id',
@@ -83,5 +85,9 @@ class Letter extends Model
     public function comments(): HasMany
     {
         return $this->hasMany(LetterComment::class)->latest();
+    }
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(LetterAttachment::class);
     }
 }

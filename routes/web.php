@@ -9,6 +9,7 @@ use App\Http\Controllers\UnitController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Models\Letter;
+use App\Http\Controllers\LetterAttachmentController;
 
 Route::get('/', function () {
     return redirect()->route('login');
@@ -139,6 +140,19 @@ Route::middleware('auth')->group(function () {
     Route::get('/surat/{id}', [LetterController::class, 'show'])
         ->name('letters.show');
 
+    // Manajemen Dokumen Surat
+    Route::post('/surat/{letterId}/dokumen', [LetterAttachmentController::class, 'store'])
+        ->name('letters.attachments.store');
+
+    Route::get('/dokumen/{id}/preview', [LetterAttachmentController::class, 'show'])
+        ->name('letters.attachments.show');
+
+    Route::get('/dokumen/{id}/download', [LetterAttachmentController::class, 'download'])
+        ->name('letters.attachments.download');
+
+    Route::delete('/dokumen/{id}', [LetterAttachmentController::class, 'destroy'])
+        ->name('letters.attachments.destroy');
+
 
     // Surat Masuk
     Route::get('/surat-masuk', [LetterController::class, 'incoming'])
@@ -153,9 +167,15 @@ Route::middleware('auth')->group(function () {
     Route::post('/surat/{id}/kirim', [LetterController::class, 'send'])
         ->name('letters.send');
 
+
     // Konfirmasi penerimaan surat
     Route::post('/surat/{id}/terima', [LetterController::class, 'receive'])
         ->name('letters.receive');
+
+
+    // Memperbarui posisi surat
+    Route::put('/surat/{id}/posisi', [LetterController::class, 'updatePosition'])
+        ->name('letters.position.update');
 
     // Disposisi surat
     Route::post('/surat/{id}/disposisi', [LetterController::class, 'storeDisposition'])

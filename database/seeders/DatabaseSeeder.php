@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
             ClassificationSeeder::class,
             AdminUserSeeder::class,
             StaffUserSeeder::class,
+            DispositionTargetSeeder::class,
         ]);
     }
 }
