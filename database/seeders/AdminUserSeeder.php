@@ -20,30 +20,21 @@ class AdminUserSeeder extends Seeder
 
         $email = 'admin@sidilan.local';
 
-        // Jangan menimpa akun yang sudah tersedia.
-        $exists = DB::table('users')
-            ->where('email', $email)
-            ->exists();
+        DB::table('users')->updateOrInsert(
+            ['email' => $email],
+            [
+                'name' => 'Administrator',
+                'password' => Hash::make('admin123'),
+                'role_id' => $adminRoleId,
+                'unit_id' => null,
+                'email_verified_at' => now(),
+                'updated_at' => now(),
+                'created_at' => now(),
+            ]
+        );
 
-        if ($exists) {
-            $this->command->info(
-                'Akun administrator sudah tersedia. Tidak ada perubahan.'
-            );
-
-            return;
-        }
-
-        DB::table('users')->insert([
-            'name' => 'Administrator',
-            'email' => $email,
-            'password' => Hash::make('UMHT2026'),
-            'role_id' => $adminRoleId,
-            'unit_id' => null,
-            'email_verified_at' => now(),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $this->command->info('Akun administrator berhasil dibuat.');
+        $this->command->info(
+            'Akun administrator berhasil dibuat atau diperbarui.'
+        );
     }
 }

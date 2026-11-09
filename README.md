@@ -6,6 +6,14 @@ SIDILAN (Sistem Digital Tindak Lanjut) adalah aplikasi berbasis web untuk memban
 
 Aplikasi ini dikembangkan untuk mempermudah proses administrasi surat secara digital, mulai dari pencatatan surat masuk dan keluar, penerimaan surat, disposisi, tindak lanjut, hingga monitoring dan pelaporan.
 
+## Preview Online
+
+Aplikasi SIDILAN dapat diakses melalui:
+
+https://sidilan-production.up.railway.app
+
+Preview online digunakan untuk keperluan demonstrasi dan evaluasi aplikasi.
+
 ## Fitur Utama
 
 ### 1. Manajemen Surat
@@ -28,7 +36,7 @@ Aplikasi ini dikembangkan untuk mempermudah proses administrasi surat secara dig
 - Pencatatan aktivitas tindak lanjut.
 - Pembaruan status penyelesaian.
 - Penambahan keterangan tindak lanjut.
-- Upload bukti tindak lanjut dalam format PDF.
+- Upload bukti tindak lanjut dalam format PDF secara opsional.
 
 ### 4. Monitoring Surat
 
@@ -82,6 +90,8 @@ Aplikasi ini dikembangkan untuk mempermudah proses administrasi surat secara dig
 | Icon                  | Bootstrap Icons 1.13.2 |
 | PHP Dependency        | Composer               |
 | JavaScript Dependency | NPM                    |
+| Hosting Preview       | Railway                |
+| Version Control       | Git dan GitHub         |
 
 ## Persyaratan Sistem
 
@@ -97,9 +107,7 @@ Sebelum melakukan instalasi, pastikan laptop sudah memiliki:
 
 Pastikan Apache dan MySQL tersedia melalui XAMPP.
 
-## Panduan Instalasi
-
-Berikut langkah-langkah instalasi SIDILAN pada laptop baru.
+## Panduan Instalasi Lokal
 
 ### 1. Install kebutuhan aplikasi
 
@@ -127,7 +135,7 @@ Buka terminal, kemudian masuk ke folder `htdocs` milik XAMPP.
 
 Contoh:
 
-```bash
+```powershell
 cd C:\xampp\htdocs
 ```
 
@@ -151,8 +159,6 @@ Jalankan:
 composer install
 ```
 
-Tunggu sampai seluruh dependency PHP selesai diunduh.
-
 ### 4. Buat file environment
 
 Salin file `.env.example` menjadi `.env`.
@@ -162,8 +168,6 @@ Pada Windows PowerShell:
 ```powershell
 Copy-Item .env.example .env
 ```
-
-Kemudian buka file `.env` menggunakan Visual Studio Code.
 
 Sesuaikan konfigurasi aplikasi dan database:
 
@@ -190,23 +194,15 @@ Jika MySQL menggunakan password, sesuaikan nilai `DB_PASSWORD`.
 2. Buka browser.
 3. Akses http://localhost/phpmyadmin
 4. Pilih menu Database.
-5. Buat database baru dengan nama:
-
-```text
-sidilan
-```
-
-Database menggunakan MySQL dengan konfigurasi default XAMPP.
+5. Buat database baru dengan nama `sidilan`.
 
 ### 6. Generate application key
 
-Kembali ke terminal proyek dan jalankan:
+Jalankan:
 
 ```bash
 php artisan key:generate
 ```
-
-Perintah ini akan membuat APP_KEY secara otomatis pada file `.env`.
 
 ### 7. Jalankan migration dan seeder
 
@@ -222,11 +218,9 @@ Perintah ini akan:
 - Mengisi data role pengguna.
 - Mengisi data unit kerja.
 - Mengisi data klasifikasi surat.
-- Membuat akun administrator.
-- Membuat akun petugas Logistik dan Pusat.
+- Membuat atau memperbarui akun administrator.
+- Membuat atau memperbarui akun petugas Logistik dan Pusat.
 - Mengisi target disposisi awal.
-
-Pastikan proses migration dan seeder selesai tanpa error.
 
 Catatan: Perintah ini digunakan untuk instalasi database baru. Jangan menggunakan `migrate:fresh` pada database yang sudah berisi data penting karena dapat menghapus seluruh tabel.
 
@@ -236,11 +230,6 @@ Jalankan:
 
 ```bash
 npm install
-```
-
-Kemudian build aset frontend:
-
-```bash
 npm run build
 ```
 
@@ -252,31 +241,49 @@ Jalankan server Laravel:
 php artisan serve
 ```
 
-Buka browser dan akses:
+Buka browser:
 
 http://127.0.0.1:8000
 
-SIDILAN sekarang sudah dapat digunakan.
+SIDILAN sekarang sudah dapat digunakan secara lokal.
 
 ## Akun Demo
 
-Seeder menyediakan tiga akun pengguna untuk kebutuhan pengujian lokal:
+Akun berikut disediakan untuk kebutuhan demonstrasi dan pengujian.
 
-| Peran            | Email                  |
-| ---------------- | ---------------------- |
-| Administrator    | admin@sidilan.local    |
-| Petugas Logistik | logistik@sidilan.local |
-| Petugas Pusat    | pusat@sidilan.local    |
+| Peran            | Email                  | Password    |
+| ---------------- | ---------------------- | ----------- |
+| Administrator    | admin@sidilan.local    | admin123    |
+| Petugas Logistik | logistik@sidilan.local | logistik123 |
+| Petugas Pusat    | pusat@sidilan.local    | pusat123    |
 
-Password awal tersedia pada file Seeder masing-masing di folder `database/seeders`.
+Seeder menggunakan mekanisme update atau insert berdasarkan email. Jika akun sudah tersedia, data nama, password, role, dan unit akan diperbarui sesuai konfigurasi seeder.
 
-Untuk keamanan, ganti password akun demo sebelum aplikasi digunakan pada lingkungan produksi.
+Catatan: Password sederhana ini hanya untuk kebutuhan preview dan pengujian. Jangan digunakan untuk lingkungan produksi.
 
-Seeder tidak menimpa akun yang sudah tersedia.
+## Deployment Railway
+
+SIDILAN menggunakan Railway sebagai platform hosting untuk preview online.
+
+Konfigurasi deployment meliputi:
+
+- Repository GitHub sebagai sumber kode.
+- Laravel sebagai aplikasi backend.
+- MySQL Railway sebagai database online.
+- Environment Variables untuk konfigurasi aplikasi dan database.
+- Pre-deploy migration menggunakan perintah:
+
+```bash
+php artisan migrate --force
+```
+
+Setiap perubahan yang di-push ke branch `main` GitHub akan memicu deployment otomatis melalui Railway apabila integrasi deployment aktif.
+
+Alamat preview:
+
+https://sidilan-production.up.railway.app
 
 ## Struktur Proyek
-
-Beberapa direktori utama dalam aplikasi:
 
 ```text
 sidilan/
