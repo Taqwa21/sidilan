@@ -11,21 +11,29 @@
 
     <style>
         :root {
-            --navy: #142d4e;
-            --orange: #f79629;
-            --bg: #f4f6fa;
+            --navy: #123b63;
+            --navy-dark: #0b2948;
+            --navy-soft: #24557f;
+            --orange: #f28c28;
+            --orange-light: #ffb45f;
+            --bg: #f2f6fb;
         }
 
         body {
-            background: var(--bg);
+            background:
+                radial-gradient(circle at 92% 8%, rgba(242, 140, 40, 0.10), transparent 25rem),
+                radial-gradient(circle at 12% 88%, rgba(31, 105, 157, 0.08), transparent 28rem),
+                var(--bg);
             font-family: Arial, sans-serif;
             color: #253247;
         }
 
         .sidebar {
             width: 250px;
+            height: 100vh;
             min-height: 100vh;
-            background: var(--navy);
+            box-sizing: border-box;
+            background: linear-gradient(160deg, #174a78 0%, var(--navy) 48%, var(--navy-dark) 100%);
             position: fixed;
             top: 0;
             left: 0;
@@ -33,25 +41,77 @@
             z-index: 1000;
             padding: 25px 15px;
             overflow-y: auto;
+            overflow-x: hidden;
+            overscroll-behavior-y: contain;
+            -webkit-overflow-scrolling: touch;
+            box-shadow: 8px 0 28px rgba(11, 41, 72, 0.12);
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.35) rgba(255, 255, 255, 0.06);
+        }
+
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.28);
+            border-radius: 10px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.45);
+        }
+
+        .sidebar::before {
+            content: '';
+            position: absolute;
+            width: 230px;
+            height: 230px;
+            right: -125px;
+            top: 115px;
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 50%;
+            box-shadow: 0 0 0 24px rgba(255, 255, 255, 0.025),
+                0 0 0 48px rgba(255, 255, 255, 0.02);
+            pointer-events: none;
+        }
+
+        .sidebar > * {
+            position: relative;
+            z-index: 1;
         }
 
         .brand {
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 0 12px 30px;
+            padding: 0 12px 28px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            margin-bottom: 18px;
         }
 
-        .brand-icon {
-            background: var(--orange);
-            width: 42px;
-            height: 42px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 21px;
+        .brand-logo {
+            width: 52px;
+            height: 62px;
+            object-fit: contain;
+            object-position: center;
             flex-shrink: 0;
+            filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.16));
+        }
+
+        .brand-text h5 {
+            letter-spacing: 1.2px;
+            font-size: 18px;
+        }
+
+        .brand-text small {
+            color: #c6d7e8 !important;
+            font-size: 11px;
+            letter-spacing: 0.2px;
         }
 
         .nav-label {
@@ -72,10 +132,18 @@
             text-decoration: none;
         }
 
+        .sidebar .nav-link {
+            transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+        }
+
         .sidebar .nav-link:hover,
         .sidebar .nav-link.active {
             color: white;
-            background: #29496f;
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .sidebar .nav-link:hover {
+            transform: translateX(2px);
         }
 
         .sidebar .nav-link.active {
@@ -86,6 +154,28 @@
             margin-left: 250px;
             padding: 30px;
             min-height: 100vh;
+            background: transparent;
+        }
+
+        .topbar {
+            position: relative;
+            padding: 18px 22px;
+            border: 1px solid rgba(210, 221, 234, 0.9);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.88);
+            box-shadow: 0 8px 24px rgba(30, 59, 89, 0.055);
+            backdrop-filter: blur(8px);
+        }
+
+        .topbar h4 {
+            color: var(--navy);
+            letter-spacing: -0.25px;
+        }
+
+        footer {
+            padding: 18px 10px 6px;
+            border-top: 1px solid rgba(194, 207, 222, 0.65);
+            color: #718096 !important;
         }
 
         .profile-avatar {
@@ -497,7 +587,12 @@
 
             .brand {
                 justify-content: center;
-                padding: 0 0 30px;
+                padding: 0 0 22px;
+            }
+
+            .brand-logo {
+                width: 42px;
+                height: 52px;
             }
 
             .brand-text,
@@ -530,6 +625,8 @@
                 align-items: flex-start;
                 gap: 12px;
                 flex-wrap: wrap;
+                padding: 16px;
+                border-radius: 13px;
             }
 
             .topbar h4 {
@@ -565,13 +662,11 @@
     <aside class="sidebar">
 
         <div class="brand">
-            <div class="brand-icon">
-                <i class="bi bi-envelope-paper"></i>
-            </div>
+            <img src="{{ asset('images/logo-bnpb.png') }}" alt="Logo BNPB" class="brand-logo">
 
             <div class="brand-text">
                 <h5 class="mb-0 fw-bold">SIDILAN</h5>
-                <small class="text-white-50">Monitoring Surat</small>
+                <small>Monitoring Surat</small>
             </div>
         </div>
 
