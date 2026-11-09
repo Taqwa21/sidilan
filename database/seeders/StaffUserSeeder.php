@@ -6,35 +6,58 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
-class AdminUserSeeder extends Seeder
+class StaffUserSeeder extends Seeder
 {
     public function run(): void
     {
-        $adminRoleId = DB::table('roles')
-            ->where('slug', 'admin')
-            ->value('id');
-
-        if (!$adminRoleId) {
-            throw new \RuntimeException('Role admin belum tersedia.');
-        }
-
-        $email = 'admin@sidilan.local';
-
-        DB::table('users')->updateOrInsert(
-            ['email' => $email],
+        $accounts = [
             [
-                'name' => 'Administrator',
-                'password' => Hash::make('admin123'),
-                'role_id' => $adminRoleId,
-                'unit_id' => null,
-                'email_verified_at' => now(),
-                'updated_at' => now(),
-                'created_at' => now(),
-            ]
-        );
+                'name' => 'Petugas Logistik',
+                'email' => 'logistik@sidilan.local',
+                'password' => 'logistik123',
+                'role' => 'logistik',
+                'unit' => 'LOGISTIK',
+            ],
+            [
+                'name' => 'Petugas Pusat',
+                'email' => 'pusat@sidilan.local',
+                'password' => 'pusat123',
+                'role' => 'pusat',
+                'unit' => 'PUSAT',
+            ],
+        ];
 
-        $this->command->info(
-            'Akun administrator berhasil dibuat atau diperbarui.'
-        );
+        foreach ($accounts as $account) {
+            $roleId = DB::table('roles')
+                ->where('slug', $account['role'])
+                ->value('id');
+
+            $unitId = DB::table('units')
+                ->where('code', $account['unit'])
+                ->value('id');
+
+            if (!$roleId || !$unitId) {
+                throw new \RuntimeException(
+                    "Role atau unit untuk {$account['email']} belum tersedia."
+                );
+            }
+
+            DB::table('users')->updateOrInsert(
+                ['email' => $account['email']],
+                [
+                    'name' => $account['name'],
+                    'password' => Hash::make($account['password']),
+                    'role_id' => $roleId,
+                    'unit_id' => $unitId,
+                    'email_verified_at' => now(),
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ]
+            );
+
+            $this->command->info(
+                "Akun {$account['email']} berhasil dibuat atau diperbarui."
+            );
+        }
     }
 }

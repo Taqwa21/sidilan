@@ -277,6 +277,14 @@ Konfigurasi deployment meliputi:
 php artisan migrate --force
 ```
 
+Untuk inisialisasi database pertama kali, migration dan seeder dapat dijalankan menggunakan:
+
+```bash
+php artisan migrate --force && php artisan db:seed --force
+```
+
+Perintah seeding tersebut digunakan untuk membuat data awal dan akun demo. Setelah inisialisasi berhasil, kembalikan Pre-deploy Command menjadi `php artisan migrate --force` agar seeder tidak dijalankan kembali pada setiap deployment.
+
 Setiap perubahan yang di-push ke branch `main` GitHub akan memicu deployment otomatis melalui Railway apabila integrasi deployment aktif.
 
 Alamat preview:
