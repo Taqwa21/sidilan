@@ -31,8 +31,17 @@ Route::middleware('auth')->group(function () {
                 $query->whereRaw('1 = 0');
             } else {
                 $query->where(function ($q) use ($user) {
+
+                    // Pengirim tetap dapat melihat surat milik unitnya,
+                    // termasuk surat yang masih berstatus draft.
                     $q->where('sender_unit_id', $user->unit_id)
-                        ->orWhere('receiver_unit_id', $user->unit_id);
+
+                        // Penerima hanya dapat melihat surat yang sudah dikirim.
+                        ->orWhere(function ($receiverQuery) use ($user) {
+                            $receiverQuery
+                                ->where('receiver_unit_id', $user->unit_id)
+                                ->where('status', '!=', 'draft');
+                        });
                 });
             }
         }
@@ -45,7 +54,7 @@ Route::middleware('auth')->group(function () {
         }
 
         $suratTerbaru = (clone $query)
-            ->latest()
+            ->latest('id')
             ->take(5)
             ->get();
 

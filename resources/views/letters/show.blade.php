@@ -28,7 +28,8 @@
 
         $canUploadReceipt = !$isAdmin && $isReceiver && !$isFinished && $currentStatus !== 'draft';
 
-        $canUpdatePosition = !$isAdmin && ($isSender || $isReceiver) && !$isFinished;
+        // Hanya unit penerima yang dapat memperbarui posisi surat.
+        $canUpdatePosition = !$isAdmin && $isReceiver && !$isFinished;
     @endphp
 
     <div class="container-fluid">
@@ -229,7 +230,7 @@
             </div>
         </div>
 
-        {{-- PERBARUI POSISI SURAT --}}
+        {{-- PERBARUI POSISI SURAT: KHUSUS UNIT PENERIMA --}}
         @if ($canUpdatePosition)
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-body p-4">
@@ -400,7 +401,7 @@
             </div>
         </div>
 
-        {{-- KONFIRMASI PENERIMAAN DAN BUKTI --}}
+        {{-- KONFIRMASI PENERIMAAN: KHUSUS UNIT PENERIMA --}}
         @if ($isReceiver && $currentStatus !== 'draft')
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-header bg-white py-3">
@@ -460,9 +461,9 @@
                         </div>
                     @endif
 
-                    {{-- FORM UPLOAD BUKTI PENERIMAAN --}}
+                    {{-- FORM UPLOAD BUKTI PENERIMAAN: KHUSUS PENERIMA --}}
                     @if ($canUploadReceipt)
-                        <div class="border rounded p-3 mb-4">
+                        <div class="border rounded p-3">
                             <h6 class="mb-2">Upload Bukti Penerimaan</h6>
 
                             <p class="text-muted small">
@@ -492,8 +493,26 @@
                         </div>
                     @endif
 
-                    {{-- DAFTAR BUKTI PENERIMAAN --}}
-                    <h6 class="mb-3">Dokumen Bukti Penerimaan</h6>
+                </div>
+            </div>
+        @endif
+
+        {{-- DAFTAR BUKTI PENERIMAAN: DAPAT DILIHAT PENGIRIM DAN PENERIMA --}}
+        @if ($currentStatus !== 'draft')
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0">
+                        <i class="bi bi-file-earmark-check me-2"></i>
+                        Dokumen Bukti Penerimaan
+                    </h5>
+                </div>
+
+                <div class="card-body p-4">
+
+                    <p class="text-muted small mb-3">
+                        Dokumen bukti penerimaan yang telah diunggah oleh unit penerima.
+                        Dokumen ini dapat dilihat dan diunduh oleh unit pengirim maupun penerima.
+                    </p>
 
                     @php
                         $receiptAttachments = $letter->attachments
@@ -559,9 +578,12 @@
 
                         </div>
                     @empty
-                        <p class="text-muted small mb-0">
-                            Belum ada bukti penerimaan yang diunggah.
-                        </p>
+                        <div class="text-center py-3 text-muted">
+                            <i class="bi bi-file-earmark-x fs-2"></i>
+                            <p class="small mt-2 mb-0">
+                                Belum ada bukti penerimaan yang diunggah.
+                            </p>
+                        </div>
                     @endforelse
 
                 </div>

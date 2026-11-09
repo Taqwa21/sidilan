@@ -509,19 +509,22 @@ class LetterController extends Controller
 
         $letter = $this->visibleLetters()->findOrFail($id);
 
-        $isSender = (int) $letter->sender_unit_id === (int) $user->unit_id;
-        $isReceiver = (int) $letter->receiver_unit_id === (int) $user->unit_id;
-
         abort_unless(
-            $isSender || $isReceiver,
+            (int) $letter->receiver_unit_id === (int) $user->unit_id,
             403,
-            'Anda tidak memiliki akses untuk mengubah posisi surat.'
+            'Hanya unit penerima yang dapat memperbarui posisi surat.'
         );
 
-        DB::transaction(function () use ($letter, $validated) {
+        DB::transaction(function () use ($letter, $validated, $user) {
             $lockedLetter = Letter::whereKey($letter->id)
                 ->lockForUpdate()
                 ->firstOrFail();
+
+            abort_unless(
+                (int) $lockedLetter->receiver_unit_id === (int) $user->unit_id,
+                403,
+                'Hanya unit penerima yang dapat memperbarui posisi surat.'
+            );
 
             abort_unless(
                 !in_array($lockedLetter->status, ['selesai', 'dibatalkan']),
@@ -576,6 +579,7 @@ class LetterController extends Controller
                 'dispositions.targets',
                 'followUps.user',
                 'followUps.attachments.uploader',
+                'attachments.uploader',
                 'comments.user',
             ])
             ->findOrFail($id);
