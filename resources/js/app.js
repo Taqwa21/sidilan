@@ -59,13 +59,19 @@ document.addEventListener('DOMContentLoaded', () => {
         new Chart(statusCanvas, {
             type: 'doughnut',
             data: {
-                labels: ['Menunggu', 'Dalam Proses', 'Selesai'],
+                labels: [
+                    'Menunggu',
+                    'Dalam Proses',
+                    'Selesai',
+                    'Dibatalkan'
+                ],
                 datasets: [{
                     data: statusData,
                     backgroundColor: [
                         '#f79629',
                         '#3b82f6',
-                        '#16a34a'
+                        '#16a34a',
+                        '#dc3545'
                     ],
                     borderWidth: 0
                 }]

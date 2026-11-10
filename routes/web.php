@@ -1,29 +1,48 @@
-
 <?php
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\LetterController;
+use App\Http\Controllers\IncomingLetterController;
+use App\Http\Controllers\OutgoingLetterController;
+use App\Http\Controllers\DispositionController;
+use App\Http\Controllers\FollowUpController;
+use App\Http\Controllers\MonitoringController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\LetterHistoryController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
-use App\Models\Letter;
 use App\Http\Controllers\LetterAttachmentController;
+use App\Http\Controllers\SpectatorController;
+use App\Models\Letter;
 
-Route::get('/', function () {
-    return redirect()->route('login');
-});
+Route::get('/', fn() => redirect()->route('login'));
 
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login'])->name('login.process');
+
+// =====================================================
+// SPECTATOR - AKSES PUBLIK TANPA LOGIN
+// =====================================================
+
+Route::get('/spectator', [SpectatorController::class, 'index'])
+    ->name('spectator.index');
+
+Route::post('/spectator/cari', [SpectatorController::class, 'search'])
+    ->middleware('throttle:10,1')
+    ->name('spectator.search');
+
+// =====================================================
+// HALAMAN INTERNAL - WAJIB LOGIN
+// =====================================================
 
 Route::middleware('auth')->group(function () {
 
     // Dashboard
     Route::get('/dashboard', function () {
         $user = Auth::user();
-
         $query = Letter::query();
 
         if ($user->role?->slug !== 'admin') {
@@ -35,11 +54,16 @@ Route::middleware('auth')->group(function () {
                     // Pengirim tetap dapat melihat surat milik unitnya,
                     // termasuk surat yang masih berstatus draft.
                     $q->where('sender_unit_id', $user->unit_id)
+<<<<<<< HEAD
 
                         // Penerima hanya dapat melihat surat yang sudah dikirim.
                         ->orWhere(function ($receiverQuery) use ($user) {
                             $receiverQuery
                                 ->where('receiver_unit_id', $user->unit_id)
+=======
+                        ->orWhere(function ($receiver) use ($user) {
+                            $receiver->where('receiver_unit_id', $user->unit_id)
+>>>>>>> 5ec65f1 (docs: update README and improve document preview UI)
                                 ->where('status', '!=', 'draft');
                         });
                 });
@@ -47,9 +71,10 @@ Route::middleware('auth')->group(function () {
         }
 
         $pilihanPeriode = [7, 14, 21, 30];
+
         $periode = (int) request()->query('periode', 30);
 
-        if (!in_array($periode, $pilihanPeriode)) {
+        if (!in_array($periode, $pilihanPeriode, true)) {
             $periode = 30;
         }
 
@@ -62,7 +87,7 @@ Route::middleware('auth')->group(function () {
             ->whereNotNull('letter_date')
             ->whereBetween('letter_date', [
                 now()->subDays($periode - 1)->startOfDay(),
-                now()->endOfDay()
+                now()->endOfDay(),
             ]);
 
         $totalSurat = (clone $statistikQuery)->count();
@@ -72,17 +97,23 @@ Route::middleware('auth')->group(function () {
                 'terkirim',
                 'menunggu_konfirmasi',
                 'diterima',
-                'didisposisikan',
-                'menunggu_tindak_lanjut',
             ])
             ->count();
 
         $dalamProses = (clone $statistikQuery)
-            ->where('status', 'dalam_proses')
+            ->whereIn('status', [
+                'didisposisikan',
+                'dalam_proses',
+                'menunggu_tindak_lanjut',
+            ])
             ->count();
 
         $selesai = (clone $statistikQuery)
             ->where('status', 'selesai')
+            ->count();
+
+        $dibatalkan = (clone $statistikQuery)
+            ->where('status', 'dibatalkan')
             ->count();
 
         $suratPerHari = (clone $statistikQuery)
@@ -91,12 +122,10 @@ Route::middleware('auth')->group(function () {
             ->pluck('total', 'tanggal');
 
         $labelGrafik = collect(range(0, $periode - 1))
-            ->map(function ($i) use ($periode) {
-                return now()
-                    ->startOfDay()
-                    ->subDays($periode - 1 - $i)
-                    ->format('d/m');
-            })
+            ->map(fn($i) => now()
+                ->startOfDay()
+                ->subDays($periode - 1 - $i)
+                ->format('d/m'))
             ->values();
 
         $dataGrafik = collect(range(0, $periode - 1))
@@ -115,6 +144,7 @@ Route::middleware('auth')->group(function () {
             'menunggu',
             'dalamProses',
             'selesai',
+            'dibatalkan',
             'suratTerbaru',
             'dataGrafik',
             'labelGrafik',
@@ -122,155 +152,63 @@ Route::middleware('auth')->group(function () {
         ));
     })->name('dashboard');
 
-
-    // Manajemen Surat
-    Route::get('/surat', [LetterController::class, 'index'])
+    // Data utama surat
+    Route::get('/surat', fn() => redirect()->route('letters.outgoing'))
         ->name('letters.index');
+    Route::get('/surat/tambah', [LetterController::class, 'create'])->name('letters.create');
+    Route::post('/surat', [LetterController::class, 'store'])->name('letters.store');
+    Route::get('/surat/{id}/edit', [LetterController::class, 'edit'])->name('letters.edit');
+    Route::put('/surat/{id}', [LetterController::class, 'update'])->name('letters.update');
+    Route::delete('/surat/{id}', [LetterController::class, 'destroy'])->name('letters.destroy');
+    Route::get('/surat/{id}', [LetterController::class, 'show'])->name('letters.show');
 
-    Route::get('/surat/tambah', [LetterController::class, 'create'])
-        ->name('letters.create');
+    // Surat masuk dan surat keluar
+    Route::get('/surat-masuk', [IncomingLetterController::class, 'index'])->name('letters.incoming');
+    Route::get('/surat-keluar', [OutgoingLetterController::class, 'index'])->name('letters.outgoing');
 
-    Route::post('/surat', [LetterController::class, 'store'])
-        ->name('letters.store');
+    // Aksi pada detail surat
+    Route::post('/surat/{id}/kirim', [LetterController::class, 'send'])->name('letters.send');
+    Route::post('/surat/{id}/terima', [LetterController::class, 'receive'])->name('letters.receive');
+    Route::put('/surat/{id}/posisi', [LetterController::class, 'updatePosition'])->name('letters.position.update');
 
+    // Dokumen surat
+    Route::post('/surat/{letterId}/dokumen', [LetterAttachmentController::class, 'store'])->name('letters.attachments.store');
+    Route::get('/dokumen/{id}/preview', [LetterAttachmentController::class, 'show'])->name('letters.attachments.show');
+    Route::get('/dokumen/{id}/download', [LetterAttachmentController::class, 'download'])->name('letters.attachments.download');
+    Route::delete('/dokumen/{id}', [LetterAttachmentController::class, 'destroy'])->name('letters.attachments.destroy');
 
-    // Edit, update, dan hapus surat draft
-    Route::get('/surat/{id}/edit', [LetterController::class, 'edit'])
-        ->name('letters.edit');
+    // Disposisi
+    Route::post('/surat/{id}/disposisi', [DispositionController::class, 'store'])->name('letters.dispositions.store');
+    Route::get('/disposisi', [DispositionController::class, 'index'])->name('dispositions.index');
 
-    Route::put('/surat/{id}', [LetterController::class, 'update'])
-        ->name('letters.update');
+    // Tindak lanjut
+    Route::post('/surat/{id}/tindak-lanjut', [FollowUpController::class, 'store'])->name('letters.followups.store');
+    Route::get('/tindak-lanjut', [FollowUpController::class, 'index'])->name('followups.index');
 
-    Route::delete('/surat/{id}', [LetterController::class, 'destroy'])
-        ->name('letters.destroy');
+    // Monitoring, laporan, dan riwayat
+    Route::get('/monitoring', [MonitoringController::class, 'index'])->name('monitoring.index');
+    Route::get('/laporan', [ReportController::class, 'index'])->name('reports.index');
+    Route::get('/riwayat', [LetterHistoryController::class, 'index'])->name('letters.history');
 
+    // Administrasi
+    Route::middleware('role:admin')->prefix('admin')->name('admin.')->group(function () {
+        Route::put('/surat/{id}/koreksi-status', [LetterController::class, 'correctStatus'])->name('letters.correct-status');
 
-    // Detail surat
-    Route::get('/surat/{id}', [LetterController::class, 'show'])
-        ->name('letters.show');
+        Route::get('/unit-kerja', [UnitController::class, 'index'])->name('units.index');
+        Route::post('/unit-kerja', [UnitController::class, 'store'])->name('units.store');
+        Route::put('/unit-kerja/{unit}', [UnitController::class, 'update'])->name('units.update');
+        Route::delete('/unit-kerja/{unit}', [UnitController::class, 'destroy'])->name('units.destroy');
 
-    // Manajemen Dokumen Surat
-    Route::post('/surat/{letterId}/dokumen', [LetterAttachmentController::class, 'store'])
-        ->name('letters.attachments.store');
+        Route::get('/role', [RoleController::class, 'index'])->name('roles.index');
+        Route::post('/role', [RoleController::class, 'store'])->name('roles.store');
+        Route::put('/role/{role}', [RoleController::class, 'update'])->name('roles.update');
+        Route::delete('/role/{role}', [RoleController::class, 'destroy'])->name('roles.destroy');
 
-    Route::get('/dokumen/{id}/preview', [LetterAttachmentController::class, 'show'])
-        ->name('letters.attachments.show');
+        Route::get('/pengguna', [UserController::class, 'index'])->name('users.index');
+        Route::post('/pengguna', [UserController::class, 'store'])->name('users.store');
+        Route::put('/pengguna/{user}', [UserController::class, 'update'])->name('users.update');
+        Route::delete('/pengguna/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    });
 
-    Route::get('/dokumen/{id}/download', [LetterAttachmentController::class, 'download'])
-        ->name('letters.attachments.download');
-
-    Route::delete('/dokumen/{id}', [LetterAttachmentController::class, 'destroy'])
-        ->name('letters.attachments.destroy');
-
-
-    // Surat Masuk
-    Route::get('/surat-masuk', [LetterController::class, 'incoming'])
-        ->name('letters.incoming');
-
-    // Surat Keluar
-    Route::get('/surat-keluar', [LetterController::class, 'outgoing'])
-        ->name('letters.outgoing');
-
-
-    // Proses pengiriman surat
-    Route::post('/surat/{id}/kirim', [LetterController::class, 'send'])
-        ->name('letters.send');
-
-
-    // Konfirmasi penerimaan surat
-    Route::post('/surat/{id}/terima', [LetterController::class, 'receive'])
-        ->name('letters.receive');
-
-
-    // Memperbarui posisi surat
-    Route::put('/surat/{id}/posisi', [LetterController::class, 'updatePosition'])
-        ->name('letters.position.update');
-
-    // Disposisi surat
-    Route::post('/surat/{id}/disposisi', [LetterController::class, 'storeDisposition'])
-        ->name('letters.dispositions.store');
-
-    // Tindak lanjut surat
-    Route::post('/surat/{id}/tindak-lanjut', [LetterController::class, 'storeFollowUp'])
-        ->name('letters.followups.store');
-
-
-    // Daftar Disposisi
-    Route::get('/disposisi', [LetterController::class, 'dispositions'])
-        ->name('dispositions.index');
-
-    // Daftar Tindak Lanjut
-    Route::get('/tindak-lanjut', [LetterController::class, 'followUps'])
-        ->name('followups.index');
-
-    // Monitoring Surat
-    Route::get('/monitoring', [LetterController::class, 'monitoring'])
-        ->name('monitoring.index');
-
-    // Laporan Surat
-    Route::get('/laporan', [LetterController::class, 'reports'])
-        ->name('reports.index');
-
-
-    // Riwayat surat
-    Route::get('/riwayat', [LetterController::class, 'history'])
-        ->name('letters.history');
-
-
-    // Manajemen Admin
-    Route::middleware('role:admin')
-        ->prefix('admin')
-        ->name('admin.')
-        ->group(function () {
-
-            // Koreksi Status Surat
-            Route::put('/surat/{id}/koreksi-status', [LetterController::class, 'correctStatus'])
-                ->name('letters.correct-status');
-
-            // Unit Kerja
-            Route::get('/unit-kerja', [UnitController::class, 'index'])
-                ->name('units.index');
-
-            Route::post('/unit-kerja', [UnitController::class, 'store'])
-                ->name('units.store');
-
-            Route::put('/unit-kerja/{unit}', [UnitController::class, 'update'])
-                ->name('units.update');
-
-            Route::delete('/unit-kerja/{unit}', [UnitController::class, 'destroy'])
-                ->name('units.destroy');
-
-
-            // Role
-            Route::get('/role', [RoleController::class, 'index'])
-                ->name('roles.index');
-
-            Route::post('/role', [RoleController::class, 'store'])
-                ->name('roles.store');
-
-            Route::put('/role/{role}', [RoleController::class, 'update'])
-                ->name('roles.update');
-
-            Route::delete('/role/{role}', [RoleController::class, 'destroy'])
-                ->name('roles.destroy');
-
-
-            // Manajemen Pengguna
-            Route::get('/pengguna', [UserController::class, 'index'])
-                ->name('users.index');
-
-            Route::post('/pengguna', [UserController::class, 'store'])
-                ->name('users.store');
-
-            Route::put('/pengguna/{user}', [UserController::class, 'update'])
-                ->name('users.update');
-
-            Route::delete('/pengguna/{user}', [UserController::class, 'destroy'])
-                ->name('users.destroy');
-        });
-
-
-    // Logout
-    Route::post('/logout', [AuthController::class, 'logout'])
-        ->name('logout');
+    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 });

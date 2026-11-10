@@ -1,153 +1,385 @@
-
 @extends('layouts.app')
 
 @section('title', 'Edit Surat - SIDILAN')
+@section('page_title', 'Edit Surat')
+@section('page_subtitle', 'Perbarui informasi surat selama statusnya masih Draft.')
 
 @section('content')
-<div class="container-fluid">
-
-    <div class="mb-4">
-        <h3>Edit Surat</h3>
-        <p class="text-muted">
-            Perbarui informasi surat selama statusnya masih Draft.
-        </p>
-    </div>
-
-    <div class="card border-0 shadow-sm">
-        <div class="card-body p-4">
-
-            @if ($errors->any())
-                <div class="alert alert-danger">
-                    <ul class="mb-0">
-                        @foreach ($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
+    <div class="container-fluid py-2 letter-form-page">
+        <div class="form-panel">
+            <div class="form-panel-header">
+                <div class="form-heading-icon">
+                    <i class="bi bi-pencil-square"></i>
                 </div>
-            @endif
+                <div>
+                    <h5>Formulir Edit Surat</h5>
+                    <p>Perbarui informasi surat dan disposisi awal.</p>
+                </div>
+            </div>
 
-            <form action="{{ route('letters.update', $letter->id) }}" method="POST">
-                @csrf
-                @method('PUT')
-
-                <div class="row">
-
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Nomor Surat</label>
-                        <input
-                            type="text"
-                            name="letter_number"
-                            class="form-control"
-                            value="{{ old('letter_number', $letter->letter_number) }}"
-                            required
-                        >
-                    </div>
-
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Tanggal Surat</label>
-                        <input
-                            type="date"
-                            name="letter_date"
-                            class="form-control"
-                            value="{{ old('letter_date', $letter->letter_date?->format('Y-m-d') ?? $letter->letter_date) }}"
-                            required
-                        >
-                    </div>
-
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Asal Surat</label>
-                        <input
-                            type="text"
-                            name="origin"
-                            class="form-control"
-                            value="{{ old('origin', $letter->origin) }}"
-                            required
-                        >
-                    </div>
-
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Unit Pengirim</label>
-                        <input
-                            type="text"
-                            class="form-control"
-                            value="{{ $letter->senderUnit->name ?? '-' }}"
-                            readonly
-                        >
-                    </div>
-
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Unit Penerima</label>
-                        <select name="receiver_unit_id" class="form-select" required>
-                            <option value="">Pilih Unit Penerima</option>
-
-                            @foreach ($units as $unit)
-                                <option
-                                    value="{{ $unit->id }}"
-                                    {{ old('receiver_unit_id', $letter->receiver_unit_id) == $unit->id ? 'selected' : '' }}
-                                >
-                                    {{ $unit->name }}
-                                </option>
+            <div class="form-panel-body">
+                @if ($errors->any())
+                    <div class="alert alert-danger form-error-alert">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            <span>Periksa kembali data yang dimasukkan.</span>
+                        </div>
+                        <ul class="mb-0">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
                             @endforeach
-                        </select>
+                        </ul>
                     </div>
+                @endif
 
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Klasifikasi Surat</label>
-                        <select name="classification_id" class="form-select">
-                            <option value="">Pilih Klasifikasi</option>
-
-                            @foreach ($classifications as $classification)
-                                <option
-                                    value="{{ $classification->id }}"
-                                    {{ old('classification_id', $letter->classification_id) == $classification->id ? 'selected' : '' }}
-                                >
-                                    {{ $classification->name }}
-                                </option>
-                            @endforeach
-                        </select>
+                <div class="system-info">
+                    <i class="bi bi-info-circle-fill"></i>
+                    <div>
+                        Unit pengirim mengikuti unit akun yang membuat surat, sedangkan unit penerima ditentukan otomatis
+                        oleh sistem.
                     </div>
-
-                    <div class="col-12 mb-3">
-                        <label class="form-label">Perihal</label>
-                        <input
-                            type="text"
-                            name="subject"
-                            class="form-control"
-                            value="{{ old('subject', $letter->subject) }}"
-                            required
-                        >
-                    </div>
-
-                    <div class="col-12 mb-3">
-                        <label class="form-label">Deskripsi / Keterangan</label>
-                        <textarea
-                            name="description"
-                            class="form-control"
-                            rows="4"
-                        >{{ old('description', $letter->description) }}</textarea>
-                    </div>
-
                 </div>
 
-                <hr>
+                <form action="{{ route('letters.update', $letter->id) }}" method="POST">
+                    @csrf
+                    @method('PUT')
 
-                <div class="d-flex justify-content-between">
-                    <a
-                        href="{{ route('letters.show', $letter->id) }}"
-                        class="btn btn-secondary"
-                    >
-                        Kembali
-                    </a>
+                    <div class="form-section">
+                        <div class="section-heading">
+                            <div class="section-icon">
+                                <i class="bi bi-file-earmark-text"></i>
+                            </div>
+                            <div>
+                                <h6>Informasi Surat</h6>
+                                <p>Perbarui identitas dan informasi utama surat.</p>
+                            </div>
+                        </div>
 
-                    <button type="submit" class="btn btn-primary">
-                        Simpan Perubahan
-                    </button>
-                </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="origin" class="form-label">Pengirim Surat <span
+                                        class="required-mark">*</span></label>
+                                <input type="text" id="origin" name="origin"
+                                    class="form-control @error('origin') is-invalid @enderror"
+                                    value="{{ old('origin', $letter->origin) }}" required>
+                                @error('origin')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
 
-            </form>
+                            <div class="col-md-6">
+                                <label for="letter_number" class="form-label">Nomor Surat <span
+                                        class="required-mark">*</span></label>
+                                <input type="text" id="letter_number" name="letter_number"
+                                    class="form-control @error('letter_number') is-invalid @enderror"
+                                    value="{{ old('letter_number', $letter->letter_number) }}" required>
+                                @error('letter_number')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
 
+                            <div class="col-md-6">
+                                <label for="letter_date" class="form-label">Tanggal Surat <span
+                                        class="required-mark">*</span></label>
+                                <input type="date" id="letter_date" name="letter_date"
+                                    class="form-control @error('letter_date') is-invalid @enderror"
+                                    value="{{ old('letter_date', $letter->letter_date?->format('Y-m-d') ?? $letter->letter_date) }}"
+                                    required>
+                                @error('letter_date')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="subject" class="form-label">Perihal <span
+                                        class="required-mark">*</span></label>
+                                <input type="text" id="subject" name="subject"
+                                    class="form-control @error('subject') is-invalid @enderror"
+                                    value="{{ old('subject', $letter->subject) }}" required>
+                                @error('subject')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="section-heading">
+                            <div class="section-icon orange">
+                                <i class="bi bi-diagram-3"></i>
+                            </div>
+                            <div>
+                                <h6>Disposisi Awal</h6>
+                                <p>Perbarui disposisi selama surat masih berstatus Draft.</p>
+                            </div>
+                            <span class="optional-label">Opsional</span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="instruction" class="form-label">
+                                Disposisi <span class="optional-text">(Opsional)</span>
+                            </label>
+                            <textarea id="instruction" name="instruction" class="form-control @error('instruction') is-invalid @enderror"
+                                rows="3" placeholder="Masukkan instruksi disposisi jika sudah tersedia">{{ old('instruction', $initialDisposition?->instruction) }}</textarea>
+                            @error('instruction')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div>
+                            <label for="target_units" class="form-label">
+                                Unit Kerja <span class="optional-text">(Opsional)</span>
+                            </label>
+                            <input type="text" id="target_units" name="target_units"
+                                class="form-control @error('target_units') is-invalid @enderror"
+                                value="{{ old('target_units', $initialDisposition?->target_units) }}"
+                                placeholder="Contoh: PLP, OJLP">
+                            @error('target_units')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <a href="{{ route('letters.show', $letter->id) }}" class="btn btn-back">
+                            <i class="bi bi-arrow-left"></i>
+                            Kembali
+                        </a>
+
+                        <button type="submit" class="btn btn-save">
+                            <i class="bi bi-save"></i>
+                            Simpan Perubahan
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 
-</div>
+    <style>
+        .letter-form-page {
+            color: #26364a;
+            font-size: 12px;
+        }
+
+        .letter-form-page .form-panel {
+            background: #fff;
+            border: 1px solid #e8edf3;
+            border-radius: 13px;
+            box-shadow: 0 4px 16px rgba(20, 45, 78, .045);
+            overflow: hidden;
+        }
+
+        .letter-form-page .form-panel-header {
+            display: flex;
+            align-items: center;
+            gap: 13px;
+            padding: 18px 22px;
+            border-bottom: 1px solid #edf0f4;
+        }
+
+        .letter-form-page .form-heading-icon,
+        .letter-form-page .section-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background: #edf3fa;
+            color: #193b63;
+            font-size: 17px;
+        }
+
+        .letter-form-page .form-panel-header h5 {
+            margin: 0 0 4px;
+            font-size: 14px;
+            font-weight: 700;
+            color: #20344d;
+        }
+
+        .letter-form-page .form-panel-header p,
+        .letter-form-page .section-heading p {
+            margin: 0;
+            color: #8491a1;
+            font-size: 11px;
+        }
+
+        .letter-form-page .form-panel-body {
+            padding: 22px;
+        }
+
+        .letter-form-page .system-info {
+            display: flex;
+            gap: 12px;
+            padding: 14px 16px;
+            margin-bottom: 24px;
+            border: 1px solid #dce8f5;
+            border-radius: 9px;
+            background: #f3f7fc;
+            color: #49627e;
+            font-size: 11px;
+            line-height: 1.8;
+        }
+
+        .letter-form-page .system-info>i {
+            color: #376b9e;
+            font-size: 15px;
+            margin-top: 2px;
+        }
+
+        .letter-form-page .form-error-alert {
+            padding: 13px 16px;
+            border-radius: 9px;
+            font-size: 11px;
+        }
+
+        .letter-form-page .form-error-alert ul {
+            padding-left: 30px;
+        }
+
+        .letter-form-page .form-section {
+            padding: 0 0 23px;
+            margin-bottom: 23px;
+            border-bottom: 1px solid #edf0f4;
+        }
+
+        .letter-form-page .section-heading {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            margin-bottom: 18px;
+        }
+
+        .letter-form-page .section-icon {
+            width: 34px;
+            height: 34px;
+            font-size: 15px;
+        }
+
+        .letter-form-page .section-icon.orange {
+            background: #fff3e8;
+            color: #d87925;
+        }
+
+        .letter-form-page .section-heading h6 {
+            margin: 0 0 4px;
+            color: #263a52;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .letter-form-page .optional-label {
+            margin-left: auto;
+            padding: 5px 9px;
+            border-radius: 6px;
+            background: #f2f4f7;
+            color: #778394;
+            font-size: 10px;
+        }
+
+        .letter-form-page .form-label {
+            display: block;
+            margin-bottom: 7px;
+            color: #46566b;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .letter-form-page .required-mark {
+            color: #dc654f;
+        }
+
+        .letter-form-page .optional-text {
+            color: #929dab;
+            font-weight: 400;
+        }
+
+        .letter-form-page .form-control {
+            min-height: 41px;
+            padding: 9px 12px;
+            border: 1px solid #dfe5ec;
+            border-radius: 8px;
+            color: #34465b;
+            font-size: 11px;
+            box-shadow: none;
+        }
+
+        .letter-form-page textarea.form-control {
+            min-height: 95px;
+            resize: vertical;
+        }
+
+        .letter-form-page .form-control:focus {
+            border-color: #8ba8c7;
+            box-shadow: 0 0 0 3px rgba(47, 91, 137, .08);
+        }
+
+        .letter-form-page .form-control::placeholder {
+            color: #a5afbb;
+        }
+
+        .letter-form-page .form-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .letter-form-page .btn {
+            min-height: 41px;
+            padding: 9px 16px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+        }
+
+        .letter-form-page .btn-back {
+            background: #f3f5f8;
+            color: #536276;
+            border: 1px solid #e4e8ed;
+        }
+
+        .letter-form-page .btn-save {
+            background: #193b63;
+            color: #fff;
+            border: 1px solid #193b63;
+        }
+
+        .letter-form-page .btn-save:hover {
+            background: #102e50;
+            color: #fff;
+        }
+
+        .letter-form-page .btn-back:hover {
+            background: #e9edf2;
+            color: #34465b;
+        }
+
+        @media (max-width: 576px) {
+
+            .letter-form-page .form-panel-header,
+            .letter-form-page .form-panel-body {
+                padding: 16px;
+            }
+
+            .letter-form-page .system-info {
+                padding: 12px;
+            }
+
+            .letter-form-page .form-actions {
+                flex-direction: column-reverse;
+                align-items: stretch;
+            }
+
+            .letter-form-page .form-actions .btn {
+                width: 100%;
+            }
+        }
+    </style>
 @endsection

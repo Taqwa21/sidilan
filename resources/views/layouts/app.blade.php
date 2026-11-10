@@ -5,48 +5,69 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'SIDILAN - Monitoring Surat')</title>
+    <meta name="theme-color" content="#123b63">
+
+    <title>@yield('title', 'SIDILAN - Sistem Digital Monitoring Tindak Lanjut Surat')</title>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     <style>
         :root {
-            --navy: #123b63;
-            --navy-dark: #0b2948;
-            --navy-soft: #24557f;
-            --orange: #f28c28;
-            --orange-light: #ffb45f;
-            --bg: #f2f6fb;
+            --sidilan-navy: #123b63;
+            --sidilan-navy-dark: #0b2948;
+            --sidilan-navy-light: #24557f;
+            --sidilan-orange: #f28c28;
+            --sidilan-orange-light: #ffb45f;
+            --sidilan-bg: #f2f6fb;
+            --sidilan-white: #ffffff;
+            --sidilan-text: #263449;
+            --sidilan-muted: #8290a3;
+            --sidilan-border: #e8edf3;
+            --sidilan-sidebar-width: 258px;
+            --sidilan-radius: 14px;
+            --sidilan-shadow: 0 5px 20px rgba(20, 45, 78, .055);
+        }
+
+        * {
+            box-sizing: border-box;
         }
 
         body {
+            margin: 0;
+            min-height: 100vh;
             background:
-                radial-gradient(circle at 92% 8%, rgba(242, 140, 40, 0.10), transparent 25rem),
-                radial-gradient(circle at 12% 88%, rgba(31, 105, 157, 0.08), transparent 28rem),
-                var(--bg);
-            font-family: Arial, sans-serif;
-            color: #253247;
+                radial-gradient(circle at 92% 8%, rgba(242, 140, 40, .10), transparent 25rem),
+                radial-gradient(circle at 12% 88%, rgba(31, 105, 157, .08), transparent 28rem),
+                var(--sidilan-bg);
+            color: var(--sidilan-text);
+            font-family: Inter, "Segoe UI", Arial, sans-serif;
+            font-size: 14px;
         }
 
+        a {
+            text-decoration: none;
+        }
+
+        /* SIDEBAR */
+
         .sidebar {
-            width: 250px;
+            position: fixed;
+            inset: 0 auto 0 0;
+            z-index: 1050;
+            width: var(--sidilan-sidebar-width);
             height: 100vh;
             min-height: 100vh;
-            box-sizing: border-box;
-            background: linear-gradient(160deg, #174a78 0%, var(--navy) 48%, var(--navy-dark) 100%);
-            position: fixed;
-            top: 0;
-            left: 0;
-            color: white;
-            z-index: 1000;
-            padding: 25px 15px;
+            padding: 25px 17px 20px;
             overflow-y: auto;
             overflow-x: hidden;
             overscroll-behavior-y: contain;
             -webkit-overflow-scrolling: touch;
-            box-shadow: 8px 0 28px rgba(11, 41, 72, 0.12);
+            background: linear-gradient(160deg, #174a78 0%, var(--sidilan-navy) 48%, var(--sidilan-navy-dark) 100%);
+            color: #fff;
+            box-shadow: 8px 0 28px rgba(11, 41, 72, .12);
+            transition: transform .25s ease, width .25s ease;
             scrollbar-width: thin;
-            scrollbar-color: rgba(255, 255, 255, 0.35) rgba(255, 255, 255, 0.06);
+            scrollbar-color: rgba(255, 255, 255, .35) rgba(255, 255, 255, .06);
         }
 
         .sidebar::-webkit-scrollbar {
@@ -54,16 +75,16 @@
         }
 
         .sidebar::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.06);
+            background: rgba(255, 255, 255, .06);
         }
 
         .sidebar::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.28);
+            background: rgba(255, 255, 255, .28);
             border-radius: 10px;
         }
 
         .sidebar::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.45);
+            background: rgba(255, 255, 255, .45);
         }
 
         .sidebar::before {
@@ -73,14 +94,15 @@
             height: 230px;
             right: -125px;
             top: 115px;
-            border: 1px solid rgba(255, 255, 255, 0.07);
+            border: 1px solid rgba(255, 255, 255, .07);
             border-radius: 50%;
-            box-shadow: 0 0 0 24px rgba(255, 255, 255, 0.025),
-                0 0 0 48px rgba(255, 255, 255, 0.02);
+            box-shadow:
+                0 0 0 24px rgba(255, 255, 255, .025),
+                0 0 0 48px rgba(255, 255, 255, .02);
             pointer-events: none;
         }
 
-        .sidebar > * {
+        .sidebar>* {
             position: relative;
             z-index: 1;
         }
@@ -90,7 +112,7 @@
             align-items: center;
             gap: 12px;
             padding: 0 12px 28px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            border-bottom: 1px solid rgba(255, 255, 255, .12);
             margin-bottom: 18px;
         }
 
@@ -100,107 +122,207 @@
             object-fit: contain;
             object-position: center;
             flex-shrink: 0;
-            filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.16));
+            filter: drop-shadow(0 3px 5px rgba(0, 0, 0, .16));
         }
 
         .brand-text h5 {
+            color: #fff;
             letter-spacing: 1.2px;
             font-size: 18px;
+            font-weight: 800;
         }
 
         .brand-text small {
+            display: block;
+            max-width: 160px;
+            margin-top: 3px;
             color: #c6d7e8 !important;
-            font-size: 11px;
-            letter-spacing: 0.2px;
+            font-size: 10px;
+            line-height: 1.5;
+            letter-spacing: .2px;
         }
 
         .nav-label {
-            color: #91a5bd;
-            font-size: 11px;
-            margin: 20px 12px 10px;
+            margin: 23px 11px 10px;
+            color: #829ab5;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1.3px;
             text-transform: uppercase;
-            letter-spacing: 1px;
         }
 
         .sidebar .nav-link {
-            color: #cbd5e1;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 5px;
-            font-size: 14px;
-            display: block;
-            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-height: 44px;
+            margin: 4px 0;
+            padding: 11px 13px;
+            border: 0;
+            border-radius: 9px;
+            color: #c5d1df;
+            font-size: 13px;
+            font-weight: 500;
+            text-align: left;
+            transition: background .2s ease, color .2s ease, transform .2s ease;
         }
 
-        .sidebar .nav-link {
-            transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
-        }
-
-        .sidebar .nav-link:hover,
-        .sidebar .nav-link.active {
-            color: white;
-            background: rgba(255, 255, 255, 0.12);
+        .sidebar .nav-link i {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            flex: 0 0 20px;
+            font-size: 17px;
         }
 
         .sidebar .nav-link:hover {
+            background: rgba(255, 255, 255, .09);
+            color: #fff;
             transform: translateX(2px);
         }
 
         .sidebar .nav-link.active {
-            border-left: 3px solid var(--orange);
+            position: relative;
+            background: linear-gradient(90deg, rgba(247, 150, 41, .23), rgba(247, 150, 41, .09));
+            color: #fff;
+            font-weight: 700;
         }
 
+        .sidebar .nav-link.active::before {
+            position: absolute;
+            top: 9px;
+            bottom: 9px;
+            left: 0;
+            width: 3px;
+            border-radius: 0 4px 4px 0;
+            background: var(--sidilan-orange);
+            content: "";
+        }
+
+        .sidebar-logout {
+            margin-top: 28px;
+            padding-top: 17px;
+            border-top: 1px solid rgba(255, 255, 255, .12);
+        }
+
+        .sidebar-logout .nav-link {
+            color: #f3b2b2;
+        }
+
+        .sidebar-logout .nav-link:hover {
+            background: rgba(220, 53, 69, .15);
+            color: #fff;
+        }
+
+        /* MAIN CONTENT */
+
         .main-content {
-            margin-left: 250px;
-            padding: 30px;
             min-height: 100vh;
-            background: transparent;
+            margin-left: var(--sidilan-sidebar-width);
+            padding: 28px 32px 20px;
+            transition: margin .25s ease;
         }
 
         .topbar {
-            position: relative;
-            padding: 18px 22px;
-            border: 1px solid rgba(210, 221, 234, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            min-height: 66px;
+            margin-bottom: 22px;
+            padding: 15px 20px;
+            border: 1px solid rgba(210, 221, 234, .9);
             border-radius: 16px;
-            background: rgba(255, 255, 255, 0.88);
-            box-shadow: 0 8px 24px rgba(30, 59, 89, 0.055);
+            background: rgba(255, 255, 255, .9);
+            box-shadow: 0 8px 24px rgba(30, 59, 89, .055);
             backdrop-filter: blur(8px);
         }
 
-        .topbar h4 {
-            color: var(--navy);
-            letter-spacing: -0.25px;
+        .topbar-heading {
+            display: flex;
+            align-items: center;
+            gap: 13px;
+            min-width: 0;
         }
 
-        footer {
-            padding: 18px 10px 6px;
-            border-top: 1px solid rgba(194, 207, 222, 0.65);
-            color: #718096 !important;
+        .topbar h4 {
+            margin: 0 0 4px;
+            color: var(--sidilan-navy);
+            font-size: 20px;
+            font-weight: 750;
+            letter-spacing: -.35px;
+        }
+
+        .topbar-subtitle {
+            margin: 0;
+            color: var(--sidilan-muted);
+            font-size: 11px;
+        }
+
+        .topbar-user {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            padding-left: 17px;
+            border-left: 1px solid var(--sidilan-border);
         }
 
         .profile-avatar {
-            width: 40px;
-            height: 40px;
-            background: #e8eef6;
-            color: var(--navy);
-            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: bold;
-            flex-shrink: 0;
+            width: 40px;
+            height: 40px;
+            flex: 0 0 40px;
+            border: 3px solid #edf2f8;
+            border-radius: 50%;
+            background: var(--sidilan-navy);
+            color: #fff;
+            font-size: 15px;
+            font-weight: 700;
         }
 
-        /* PENGATURAN MODE TABEL */
+        .profile-name {
+            color: var(--sidilan-navy);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .profile-role {
+            display: block;
+            margin-top: 3px;
+            color: var(--sidilan-muted);
+            font-size: 10px;
+        }
+
+        .sidebar-toggle {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            width: 38px;
+            height: 38px;
+            border: 1px solid var(--sidilan-border);
+            border-radius: 9px;
+            background: #fff;
+            color: var(--sidilan-navy);
+            font-size: 19px;
+        }
+
+        .sidebar-backdrop {
+            display: none;
+        }
+
+        /* MODE TABEL */
 
         .table-mode-switch {
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 3px;
             padding: 4px;
-            background: #e9edf3;
-            border: 1px solid #dce3ec;
+            border: 1px solid #e3e9f0;
             border-radius: 9px;
+            background: #f3f6fa;
             flex-shrink: 0;
         }
 
@@ -209,33 +331,105 @@
             align-items: center;
             justify-content: center;
             gap: 6px;
-            border: none;
-            border-radius: 6px;
             padding: 7px 11px;
+            border: 0;
+            border-radius: 6px;
             background: transparent;
-            color: #64748b;
-            font-size: 12px;
-            font-weight: 600;
+            color: #78869a;
+            font-size: 11px;
+            font-weight: 700;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: .2s ease;
         }
 
         .table-mode-btn:hover {
-            background: rgba(255, 255, 255, 0.7);
-            color: var(--navy);
+            background: #fff;
+            color: var(--sidilan-navy);
         }
 
         .table-mode-btn.active {
-            background: var(--navy);
-            color: white;
-            box-shadow: 0 2px 5px rgba(20, 45, 78, 0.2);
+            background: var(--sidilan-navy);
+            color: #fff;
+            box-shadow: 0 2px 6px rgba(20, 45, 78, .16);
         }
 
         .table-mode-btn i {
-            font-size: 14px;
+            font-size: 13px;
         }
 
-        /* COMPACT MODE - DEFAULT */
+        /* KOMPONEN GLOBAL */
+
+        .card {
+            border: 1px solid var(--sidilan-border);
+            border-radius: var(--sidilan-radius);
+            box-shadow: var(--sidilan-shadow);
+        }
+
+        .card-header {
+            border-bottom: 1px solid var(--sidilan-border);
+            border-radius: var(--sidilan-radius) var(--sidilan-radius) 0 0 !important;
+            background: #fff;
+        }
+
+        .btn {
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            transition: .2s ease;
+        }
+
+        .btn-primary {
+            border-color: var(--sidilan-navy);
+            background: var(--sidilan-navy);
+        }
+
+        .btn-primary:hover,
+        .btn-primary:focus {
+            border-color: var(--sidilan-navy-light);
+            background: var(--sidilan-navy-light);
+        }
+
+        .btn-warning {
+            border-color: var(--sidilan-orange);
+            background: var(--sidilan-orange);
+            color: #fff;
+        }
+
+        .btn-warning:hover {
+            border-color: #e88617;
+            background: #e88617;
+            color: #fff;
+        }
+
+        .form-control,
+        .form-select {
+            min-height: 40px;
+            border-color: #dfe6ee;
+            border-radius: 8px;
+            color: var(--sidilan-text);
+            font-size: 13px;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: #8ba5c4;
+            box-shadow: 0 0 0 .2rem rgba(20, 45, 78, .09);
+        }
+
+        .form-label {
+            margin-bottom: 7px;
+            color: #43536a;
+            font-size: 12px;
+            font-weight: 650;
+        }
+
+        .alert {
+            border: 0;
+            border-radius: 10px;
+            font-size: 13px;
+        }
+
+        /* TABEL COMPACT */
 
         .table-responsive {
             overflow-x: auto;
@@ -243,77 +437,66 @@
             -webkit-overflow-scrolling: touch;
         }
 
-        .table-responsive>.table {
+        body.table-mode-compact .table-responsive>.table,
+        body.table-mode-compact .table {
             min-width: 900px;
-        }
-
-        .table {
             width: 100%;
-            margin-bottom: 0;
             table-layout: fixed;
-            vertical-align: middle;
             border-collapse: collapse;
         }
 
-        .table th,
-        .table td {
-            box-sizing: border-box;
-            vertical-align: middle;
-            padding: 12px 14px;
+        body.table-mode-compact .table th,
+        body.table-mode-compact .table td {
             height: 54px;
             max-height: 54px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .table th {
-            background-color: #f1f4f8;
-            color: var(--navy);
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        .table td {
-            font-size: 13px;
-        }
-
-        .table tbody tr {
-            height: 54px;
-        }
-
-        .table td>span,
-        .table td>div,
-        .table td>p,
-        .table td>a,
-        .table td>small {
-            max-width: 100%;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .table td .badge {
-            display: inline-block;
-            max-width: 100%;
+            padding: 12px 14px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
             vertical-align: middle;
         }
 
-        .table td:has(.btn),
-        .table td:has(.btn-group) {
+        body.table-mode-compact .table th {
+            background: #f3f6fa;
+            color: var(--sidilan-navy);
+            font-size: 11px;
+            font-weight: 750;
+            letter-spacing: .2px;
+        }
+
+        body.table-mode-compact .table td {
+            color: #46556a;
+            font-size: 12px;
+        }
+
+        body.table-mode-compact .table tbody tr {
+            height: 54px;
+        }
+
+        body.table-mode-compact .table td>span,
+        body.table-mode-compact .table td>div,
+        body.table-mode-compact .table td>p,
+        body.table-mode-compact .table td>a,
+        body.table-mode-compact .table td>small,
+        body.table-mode-compact .table td .badge {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        body.table-mode-compact .table td:has(.btn),
+        body.table-mode-compact .table td:has(.btn-group) {
             overflow: visible;
             white-space: nowrap;
         }
 
-        .table th[data-tooltip],
-        .table td[data-tooltip] {
+        body.table-mode-compact .table th[data-tooltip],
+        body.table-mode-compact .table td[data-tooltip] {
             cursor: help;
         }
 
-        /* FULL MODE */
+        /* TABEL FULL */
 
         body.table-mode-full .table-responsive {
             width: 100%;
@@ -321,13 +504,7 @@
             overflow-y: visible;
         }
 
-        body.table-mode-full .table-responsive>.table {
-            width: max-content !important;
-            min-width: 100% !important;
-            max-width: none !important;
-            table-layout: auto !important;
-        }
-
+        body.table-mode-full .table-responsive>.table,
         body.table-mode-full .table {
             width: max-content !important;
             min-width: 100% !important;
@@ -340,11 +517,12 @@
             width: auto !important;
             height: auto !important;
             max-height: none !important;
-            white-space: normal !important;
+            padding: 13px 14px;
             overflow: visible !important;
+            overflow-wrap: anywhere !important;
             text-overflow: clip !important;
-            overflow-wrap: break-word !important;
-            word-break: normal;
+            white-space: normal !important;
+            vertical-align: middle;
         }
 
         body.table-mode-full .table tbody tr {
@@ -355,25 +533,16 @@
         body.table-mode-full .table td>div,
         body.table-mode-full .table td>p,
         body.table-mode-full .table td>a,
-        body.table-mode-full .table td>small {
-            width: auto !important;
-            max-width: none !important;
-            height: auto !important;
-            max-height: none !important;
-            overflow: visible !important;
-            text-overflow: clip !important;
-            white-space: normal !important;
-            overflow-wrap: break-word !important;
-        }
-
+        body.table-mode-full .table td>small,
         body.table-mode-full .table td .badge {
             width: auto !important;
             max-width: none !important;
             height: auto !important;
             max-height: none !important;
-            white-space: normal !important;
             overflow: visible !important;
             text-overflow: clip !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
         }
 
         body.table-mode-full .table td:has(.btn),
@@ -387,28 +556,25 @@
             cursor: auto;
         }
 
-        /* TOOLTIP CUSTOM SIDILAN */
+        /* TOOLTIP */
 
         .sidilan-tooltip {
             position: fixed;
             z-index: 99999;
             width: max-content;
             max-width: min(320px, calc(100vw - 24px));
-            background: #142d4e;
-            color: #ffffff;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-top: 3px solid #f79629;
-            border-radius: 10px;
             padding: 12px 15px;
-            box-shadow: 0 8px 28px rgba(10, 25, 45, 0.28);
+            border: 1px solid rgba(255, 255, 255, .12);
+            border-top: 3px solid var(--sidilan-orange);
+            border-radius: 10px;
+            background: var(--sidilan-navy);
+            color: #fff;
+            box-shadow: 0 8px 28px rgba(10, 25, 45, .28);
             pointer-events: none;
             opacity: 0;
             visibility: hidden;
-            transform: translateY(6px) scale(0.98);
-            transition:
-                opacity 0.18s ease,
-                transform 0.18s ease,
-                visibility 0.18s ease;
+            transform: translateY(6px) scale(.98);
+            transition: opacity .18s ease, transform .18s ease, visibility .18s ease;
         }
 
         .sidilan-tooltip.show {
@@ -421,61 +587,45 @@
             display: flex;
             align-items: center;
             gap: 7px;
-            color: #f79629;
+            margin-bottom: 7px;
+            color: var(--sidilan-orange);
             font-size: 10px;
             font-weight: 700;
             letter-spacing: 1px;
             text-transform: uppercase;
-            margin-bottom: 7px;
         }
 
         .sidilan-tooltip-label::before {
-            content: '';
             width: 7px;
             height: 7px;
             border-radius: 50%;
-            background: #f79629;
-            box-shadow: 0 0 8px rgba(247, 150, 41, 0.6);
+            background: var(--sidilan-orange);
+            content: "";
         }
 
         .sidilan-tooltip-text {
+            max-height: 160px;
+            overflow-y: auto;
             color: #f1f5f9;
             font-size: 12px;
             line-height: 1.6;
-            font-weight: 400;
-            white-space: normal;
             overflow-wrap: anywhere;
-            max-height: 160px;
-            overflow-y: auto;
+            white-space: normal;
         }
 
-        .sidilan-tooltip-text::-webkit-scrollbar {
-            width: 4px;
-        }
-
-        .sidilan-tooltip-text::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.08);
-            border-radius: 10px;
-        }
-
-        .sidilan-tooltip-text::-webkit-scrollbar-thumb {
-            background: #f79629;
-            border-radius: 10px;
-        }
-
-        /* MODAL KONFIRMASI SIDILAN */
+        /* MODAL KONFIRMASI */
 
         .sidilan-confirm-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(15, 29, 48, 0.58);
+            z-index: 2000;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 20px;
-            z-index: 2000;
+            background: rgba(15, 29, 48, .58);
             opacity: 1;
-            transition: opacity 0.2s ease;
+            transition: opacity .2s ease;
         }
 
         .sidilan-confirm-overlay[hidden] {
@@ -483,27 +633,26 @@
         }
 
         .sidilan-confirm-box {
-            background: #fff;
             width: 100%;
             max-width: 420px;
-            border-radius: 16px;
             padding: 28px;
-            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.2);
-            transform: translateY(0);
-            animation: sidilanModalIn 0.2s ease;
+            border-radius: 16px;
+            background: #fff;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, .2);
+            animation: sidilanModalIn .2s ease;
         }
 
         .sidilan-confirm-icon {
-            width: 54px;
-            height: 54px;
-            border-radius: 14px;
-            background: #fff1df;
-            color: var(--orange);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 25px;
+            width: 54px;
+            height: 54px;
             margin-bottom: 18px;
+            border-radius: 14px;
+            background: #fff1df;
+            color: var(--sidilan-orange);
+            font-size: 25px;
         }
 
         .sidilan-confirm-icon.danger {
@@ -512,17 +661,17 @@
         }
 
         .sidilan-confirm-title {
-            color: var(--navy);
+            margin-bottom: 8px;
+            color: var(--sidilan-navy);
             font-size: 20px;
             font-weight: 700;
-            margin-bottom: 8px;
         }
 
         .sidilan-confirm-message {
+            margin-bottom: 24px;
             color: #687588;
             font-size: 14px;
             line-height: 1.6;
-            margin-bottom: 24px;
         }
 
         .sidilan-confirm-actions {
@@ -532,13 +681,13 @@
         }
 
         .sidilan-confirm-actions button {
-            border: none;
-            border-radius: 8px;
             padding: 10px 18px;
-            font-size: 14px;
-            font-weight: 600;
+            border: 0;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 650;
             cursor: pointer;
-            transition: 0.2s;
+            transition: .2s;
         }
 
         .sidilan-btn-cancel {
@@ -551,8 +700,8 @@
         }
 
         .sidilan-btn-confirm {
-            background: var(--navy);
-            color: white;
+            background: var(--sidilan-navy);
+            color: #fff;
         }
 
         .sidilan-btn-confirm:hover {
@@ -570,7 +719,7 @@
         @keyframes sidilanModalIn {
             from {
                 opacity: 0;
-                transform: translateY(12px) scale(0.98);
+                transform: translateY(12px) scale(.98);
             }
 
             to {
@@ -579,10 +728,102 @@
             }
         }
 
-        @media(max-width: 991px) {
+        /* FOOTER */
+
+        .sidilan-footer {
+            margin-top: 30px;
+            padding: 18px 5px 5px;
+            border-top: 1px solid rgba(194, 207, 222, .65);
+            color: #95a0af;
+            font-size: 11px;
+            text-align: center;
+        }
+
+        /* RESPONSIVE */
+
+        @media (max-width: 1199px) {
+            .main-content {
+                padding: 24px;
+            }
+
+            .topbar {
+                flex-wrap: wrap;
+            }
+        }
+
+        @media (max-width: 991px) {
             .sidebar {
-                width: 70px;
-                padding: 20px 10px;
+                width: 258px;
+                transform: translateX(-100%);
+            }
+
+            body.sidebar-open .sidebar {
+                transform: translateX(0);
+            }
+
+            .sidebar-backdrop {
+                position: fixed;
+                inset: 0;
+                z-index: 1040;
+                display: block;
+                background: rgba(12, 25, 42, .45);
+                opacity: 0;
+                visibility: hidden;
+                transition: .25s ease;
+            }
+
+            body.sidebar-open .sidebar-backdrop {
+                opacity: 1;
+                visibility: visible;
+            }
+
+            .main-content {
+                margin-left: 0;
+                padding: 20px;
+            }
+
+            .sidebar-toggle {
+                display: inline-flex;
+            }
+        }
+
+        @media (max-width: 767px) {
+            .main-content {
+                padding: 15px;
+            }
+
+            .topbar {
+                align-items: flex-start;
+                gap: 13px;
+                padding: 14px;
+                margin-bottom: 19px;
+            }
+
+            .topbar-heading {
+                width: 100%;
+            }
+
+            .topbar h4 {
+                font-size: 17px;
+            }
+
+            .topbar-subtitle {
+                font-size: 10px;
+            }
+
+            .table-mode-switch {
+                order: 3;
+                width: 100%;
+            }
+
+            .table-mode-btn {
+                flex: 1;
+            }
+
+            .topbar-user {
+                margin-left: auto;
+                padding-left: 0;
+                border-left: 0;
             }
 
             .brand {
@@ -595,55 +836,23 @@
                 height: 52px;
             }
 
-            .brand-text,
-            .nav-label,
-            .nav-text {
-                display: none;
-            }
-
-            .sidebar .nav-link {
-                text-align: center;
-                font-size: 19px;
-            }
-
-            .sidebar .nav-link i {
-                margin-right: 0 !important;
-            }
-
-            .main-content {
-                margin-left: 70px;
-                padding: 20px;
+            .sidilan-confirm-box {
+                padding: 22px;
             }
         }
 
-        @media(max-width: 575px) {
-            .main-content {
-                padding: 15px;
-            }
-
+        @media (max-width: 575px) {
             .topbar {
-                align-items: flex-start;
-                gap: 12px;
+                display: flex;
                 flex-wrap: wrap;
-                padding: 16px;
-                border-radius: 13px;
             }
 
-            .topbar h4 {
-                font-size: 19px;
+            .topbar-heading {
+                flex: 1 1 100%;
             }
 
-            .table-mode-switch {
-                order: 3;
-                width: 100%;
-            }
-
-            .table-mode-btn {
-                flex: 1;
-            }
-
-            .sidilan-confirm-box {
-                padding: 22px;
+            .topbar-user {
+                flex: 1 1 auto;
             }
 
             .sidilan-confirm-actions {
@@ -659,62 +868,62 @@
 
 <body>
 
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidilanSidebar">
 
         <div class="brand">
             <img src="{{ asset('images/logo-bnpb.png') }}" alt="Logo BNPB" class="brand-logo">
 
             <div class="brand-text">
                 <h5 class="mb-0 fw-bold">SIDILAN</h5>
-                <small>Monitoring Surat</small>
+                <small>Sistem Digital Monitoring Tindak Lanjut Surat</small>
             </div>
         </div>
 
         <div class="nav-label">Menu Utama</div>
 
         <a href="{{ route('dashboard') }}" class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
-            <i class="bi bi-grid me-2"></i>
+            <i class="bi bi-grid"></i>
             <span class="nav-text">Dashboard</span>
         </a>
 
         <a href="{{ route('letters.incoming') }}"
             class="nav-link {{ request()->routeIs('letters.incoming') ? 'active' : '' }}">
-            <i class="bi bi-inbox me-2"></i>
+            <i class="bi bi-inbox"></i>
             <span class="nav-text">Surat Masuk</span>
         </a>
 
         <a href="{{ route('letters.outgoing') }}"
             class="nav-link {{ request()->routeIs('letters.outgoing') ? 'active' : '' }}">
-            <i class="bi bi-send me-2"></i>
+            <i class="bi bi-send"></i>
             <span class="nav-text">Surat Keluar</span>
         </a>
 
         <a href="{{ route('dispositions.index') }}"
             class="nav-link {{ request()->routeIs('dispositions.*') ? 'active' : '' }}">
-            <i class="bi bi-diagram-3 me-2"></i>
+            <i class="bi bi-diagram-3"></i>
             <span class="nav-text">Disposisi</span>
         </a>
 
         <a href="{{ route('followups.index') }}"
             class="nav-link {{ request()->routeIs('followups.*') ? 'active' : '' }}">
-            <i class="bi bi-list-check me-2"></i>
+            <i class="bi bi-list-check"></i>
             <span class="nav-text">Tindak Lanjut</span>
         </a>
 
         <a href="{{ route('monitoring.index') }}"
             class="nav-link {{ request()->routeIs('monitoring.*') ? 'active' : '' }}">
-            <i class="bi bi-graph-up me-2"></i>
+            <i class="bi bi-graph-up"></i>
             <span class="nav-text">Monitoring</span>
         </a>
 
         <a href="{{ route('reports.index') }}" class="nav-link {{ request()->routeIs('reports.*') ? 'active' : '' }}">
-            <i class="bi bi-file-earmark-bar-graph me-2"></i>
+            <i class="bi bi-file-earmark-bar-graph"></i>
             <span class="nav-text">Laporan</span>
         </a>
 
         <a href="{{ route('letters.history') }}"
             class="nav-link {{ request()->routeIs('letters.history') ? 'active' : '' }}">
-            <i class="bi bi-clock-history me-2"></i>
+            <i class="bi bi-clock-history"></i>
             <span class="nav-text">Riwayat Surat</span>
         </a>
 
@@ -723,29 +932,29 @@
 
             <a href="{{ route('admin.users.index') }}"
                 class="nav-link {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
-                <i class="bi bi-people me-2"></i>
+                <i class="bi bi-people"></i>
                 <span class="nav-text">Pengguna</span>
             </a>
 
             <a href="{{ route('admin.roles.index') }}"
                 class="nav-link {{ request()->routeIs('admin.roles.*') ? 'active' : '' }}">
-                <i class="bi bi-shield-lock me-2"></i>
+                <i class="bi bi-shield-lock"></i>
                 <span class="nav-text">Role</span>
             </a>
 
             <a href="{{ route('admin.units.index') }}"
                 class="nav-link {{ request()->routeIs('admin.units.*') ? 'active' : '' }}">
-                <i class="bi bi-building me-2"></i>
+                <i class="bi bi-building"></i>
                 <span class="nav-text">Unit Kerja</span>
             </a>
         @endif
 
-        <div class="mt-5 pt-4 border-top border-secondary">
+        <div class="sidebar-logout">
             <form action="{{ route('logout') }}" method="POST">
                 @csrf
 
-                <button type="submit" class="nav-link border-0 bg-transparent w-100 text-start">
-                    <i class="bi bi-box-arrow-left me-2"></i>
+                <button type="submit" class="nav-link w-100 bg-transparent">
+                    <i class="bi bi-box-arrow-left"></i>
                     <span class="nav-text">Keluar</span>
                 </button>
             </form>
@@ -753,45 +962,49 @@
 
     </aside>
 
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
     <main class="main-content">
 
-        <div class="topbar d-flex justify-content-between align-items-center mb-4">
+        <header class="topbar">
 
-            <div>
-                <h4 class="fw-bold mb-1">
-                    @yield('page_title', 'SIDILAN')
-                </h4>
+            <div class="topbar-heading">
+                <button type="button" class="sidebar-toggle" id="sidebarToggle" aria-label="Buka menu navigasi"
+                    aria-expanded="false">
+                    <i class="bi bi-list"></i>
+                </button>
 
-                <p class="text-secondary mb-0 small">
-                    @yield('page_subtitle', 'Sistem Digital Tindak Lanjut')
-                </p>
+                <div>
+                    <h4>@yield('page_title', 'SIDILAN')</h4>
+
+                    <p class="topbar-subtitle">
+                        @yield('page_subtitle', 'Sistem Digital Monitoring Tindak Lanjut Surat')
+                    </p>
+                </div>
             </div>
 
-            {{-- PENGATURAN MODE TABEL --}}
             <div class="table-mode-switch" role="group" aria-label="Mode tampilan tabel">
 
                 <button type="button" class="table-mode-btn" id="compactModeBtn" onclick="setTableMode('compact')"
-                    title="Tampilan ringkas">
+                    title="Tampilan ringkas" aria-pressed="false">
                     <i class="bi bi-layout-three-columns"></i>
                     Compact
                 </button>
 
                 <button type="button" class="table-mode-btn" id="fullModeBtn" onclick="setTableMode('full')"
-                    title="Tampilan lengkap">
+                    title="Tampilan lengkap" aria-pressed="false">
                     <i class="bi bi-table"></i>
                     Full
                 </button>
 
             </div>
 
-            <div class="d-flex align-items-center gap-3">
+            <div class="topbar-user">
 
-                <div class="text-end d-none d-sm-block">
-                    <div class="fw-semibold small">
-                        {{ Auth::user()->name }}
-                    </div>
+                <div class="d-none d-sm-block text-end">
+                    <div class="profile-name">{{ Auth::user()->name }}</div>
 
-                    <small class="text-secondary">
+                    <small class="profile-role">
                         {{ Auth::user()->role?->name ?? 'Pengguna' }}
                     </small>
                 </div>
@@ -802,17 +1015,18 @@
 
             </div>
 
-        </div>
+        </header>
 
         @yield('content')
 
-        <footer class="text-center text-secondary small mt-4">
-            SIDILAN &copy; {{ date('Y') }} — Sistem Digital Tindak Lanjut
+        <footer class="sidilan-footer">
+            SIDILAN &copy; {{ date('Y') }} — Sistem Digital Monitoring Tindak Lanjut Surat
         </footer>
 
     </main>
 
     {{-- MODAL KONFIRMASI GLOBAL --}}
+
     <div id="sidilanConfirmModal" class="sidilan-confirm-overlay" hidden role="dialog" aria-modal="true"
         aria-labelledby="sidilanConfirmTitle" aria-describedby="sidilanConfirmMessage">
 
@@ -831,6 +1045,7 @@
             </p>
 
             <div class="sidilan-confirm-actions">
+
                 <button type="button" id="sidilanConfirmCancel" class="sidilan-btn-cancel">
                     Batal
                 </button>
@@ -838,12 +1053,14 @@
                 <button type="button" id="sidilanConfirmProceed" class="sidilan-btn-confirm">
                     Ya, Lanjutkan
                 </button>
+
             </div>
 
         </div>
     </div>
 
     {{-- TOOLTIP CUSTOM SIDILAN --}}
+
     <div id="sidilanTooltip" class="sidilan-tooltip" role="tooltip">
         <div class="sidilan-tooltip-label">Detail Informasi</div>
         <div id="sidilanTooltipText" class="sidilan-tooltip-text"></div>
@@ -859,16 +1076,19 @@
                 return;
             }
 
+            document.body.classList.toggle('table-mode-compact', mode === 'compact');
             document.body.classList.toggle('table-mode-full', mode === 'full');
 
             const compactButton = document.getElementById('compactModeBtn');
             const fullButton = document.getElementById('fullModeBtn');
 
-            compactButton.classList.toggle('active', mode === 'compact');
-            fullButton.classList.toggle('active', mode === 'full');
+            if (compactButton && fullButton) {
+                compactButton.classList.toggle('active', mode === 'compact');
+                fullButton.classList.toggle('active', mode === 'full');
 
-            compactButton.setAttribute('aria-pressed', mode === 'compact');
-            fullButton.setAttribute('aria-pressed', mode === 'full');
+                compactButton.setAttribute('aria-pressed', String(mode === 'compact'));
+                fullButton.setAttribute('aria-pressed', String(mode === 'full'));
+            }
 
             try {
                 localStorage.setItem('sidilan_table_mode', mode);
@@ -882,28 +1102,72 @@
                 tooltip.classList.remove('show');
             }
 
-            // Siapkan ulang tooltip saat kembali ke Compact Mode
-            if (mode === 'compact' &&
-                typeof window.prepareSidilanTableTooltips === 'function') {
+            if (
+                mode === 'compact' &&
+                typeof window.prepareSidilanTableTooltips === 'function'
+            ) {
                 window.prepareSidilanTableTooltips();
             }
         }
 
         document.addEventListener('DOMContentLoaded', function() {
 
-            /* MEMUAT MODE TABEL TERSIMPAN */
+            /* SIDEBAR RESPONSIVE */
+
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+
+            function closeSidebar() {
+                document.body.classList.remove('sidebar-open');
+
+                if (sidebarToggle) {
+                    sidebarToggle.setAttribute('aria-expanded', 'false');
+                }
+            }
+
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', function() {
+                    const isOpen = document.body.classList.toggle('sidebar-open');
+
+                    sidebarToggle.setAttribute('aria-expanded', String(isOpen));
+                });
+            }
+
+            if (sidebarBackdrop) {
+                sidebarBackdrop.addEventListener('click', closeSidebar);
+            }
+
+            document.querySelectorAll('.sidebar .nav-link').forEach(function(link) {
+                link.addEventListener('click', function() {
+                    if (window.innerWidth <= 991) {
+                        closeSidebar();
+                    }
+                });
+            });
+
+            window.addEventListener('resize', function() {
+                if (window.innerWidth > 991) {
+                    closeSidebar();
+                }
+            });
+
+            /* MEMUAT MODE TABEL */
 
             let savedMode = 'compact';
 
             try {
-                savedMode = localStorage.getItem('sidilan_table_mode') || 'compact';
+                const storedMode = localStorage.getItem('sidilan_table_mode');
+
+                if (storedMode === 'compact' || storedMode === 'full') {
+                    savedMode = storedMode;
+                }
             } catch (error) {
                 savedMode = 'compact';
             }
 
             setTableMode(savedMode);
 
-            /* TOOLTIP CUSTOM OTOMATIS UNTUK TABEL */
+            /* TOOLTIP TABEL PADA MODE COMPACT */
 
             const tooltip = document.getElementById('sidilanTooltip');
             const tooltipText = document.getElementById('sidilanTooltipText');
@@ -916,7 +1180,6 @@
                 }
 
                 document.querySelectorAll('.table th, .table td').forEach(function(cell) {
-
                     if (cell.dataset.tooltipReady === 'true') {
                         return;
                     }
@@ -942,12 +1205,14 @@
                 });
             }
 
-            // Jadikan fungsi bisa dipanggil dari setTableMode()
             window.prepareSidilanTableTooltips = prepareTableTooltips;
-
             prepareTableTooltips();
 
             function positionTooltip(cell) {
+                if (!tooltip) {
+                    return;
+                }
+
                 const rect = cell.getBoundingClientRect();
                 const tooltipRect = tooltip.getBoundingClientRect();
 
@@ -979,16 +1244,17 @@
             }
 
             function showTooltip(cell) {
-                if (document.body.classList.contains('table-mode-full')) {
-                    return;
-                }
-
-                if (!cell || !cell.dataset.tooltip) {
+                if (
+                    document.body.classList.contains('table-mode-full') ||
+                    !cell ||
+                    !cell.dataset.tooltip ||
+                    !tooltip ||
+                    !tooltipText
+                ) {
                     return;
                 }
 
                 const fullText = cell.dataset.tooltip;
-
                 const isTruncated = cell.scrollWidth > cell.clientWidth + 2;
                 const isLongText = fullText.length > 35;
 
@@ -998,7 +1264,6 @@
 
                 activeCell = cell;
                 tooltipText.textContent = fullText;
-
                 tooltip.classList.add('show');
 
                 requestAnimationFrame(function() {
@@ -1010,17 +1275,16 @@
 
             function hideTooltip() {
                 activeCell = null;
-                tooltip.classList.remove('show');
+
+                if (tooltip) {
+                    tooltip.classList.remove('show');
+                }
             }
 
             document.addEventListener('mouseover', function(event) {
                 const cell = event.target.closest('.table th, .table td');
 
-                if (!cell) {
-                    return;
-                }
-
-                if (cell === activeCell) {
+                if (!cell || cell === activeCell) {
                     return;
                 }
 
@@ -1070,7 +1334,10 @@
             let pendingForm = null;
 
             function closeModal() {
-                modal.hidden = true;
+                if (modal) {
+                    modal.hidden = true;
+                }
+
                 pendingForm = null;
             }
 
@@ -1078,8 +1345,10 @@
                 pendingForm = form;
 
                 title.textContent = form.dataset.confirmTitle || 'Konfirmasi Tindakan';
+
                 message.textContent = form.dataset.confirmMessage ||
                     'Apakah Anda yakin ingin melanjutkan tindakan ini?';
+
                 proceedButton.textContent = form.dataset.confirmButton || 'Ya, Lanjutkan';
 
                 const isDanger = form.dataset.confirmType === 'danger';
@@ -1133,8 +1402,12 @@
             });
 
             document.addEventListener('keydown', function(event) {
-                if (event.key === 'Escape' && !modal.hidden) {
+                if (event.key === 'Escape') {
                     closeModal();
+
+                    if (window.innerWidth <= 991) {
+                        closeSidebar();
+                    }
                 }
             });
         });

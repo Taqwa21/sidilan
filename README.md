@@ -23,13 +23,16 @@ Preview online digunakan untuk keperluan demonstrasi dan evaluasi aplikasi.
 - Informasi klasifikasi, tanggal surat, asal surat, dan perihal.
 - Pengisian uraian berkas dan posisi surat.
 - Pengelolaan dokumen surat dalam format PDF.
+- Pengaturan hak akses surat berdasarkan unit kerja.
+- Pengelolaan surat dengan status draft sebelum dikirim.
 
 ### 2. Disposisi Surat
 
 - Pembuatan disposisi surat.
 - Pengisian instruksi dan tujuan disposisi.
-- Penentuan batas waktu penyelesaian.
-- Pengelolaan petugas atau unit yang ditugaskan.
+- Penentuan unit atau petugas penerima disposisi.
+- Pengisian batas waktu penyelesaian.
+- Pemantauan status disposisi.
 
 ### 3. Tindak Lanjut
 
@@ -37,20 +40,25 @@ Preview online digunakan untuk keperluan demonstrasi dan evaluasi aplikasi.
 - Pembaruan status penyelesaian.
 - Penambahan keterangan tindak lanjut.
 - Upload bukti tindak lanjut dalam format PDF secara opsional.
+- Pemantauan perkembangan tindak lanjut surat.
 
 ### 4. Monitoring Surat
 
 - Pemantauan status surat.
 - Informasi posisi surat.
 - Monitoring proses disposisi dan tindak lanjut.
-- Pencarian dan penyaringan data surat.
+- Informasi penerima disposisi dan penanggung jawab.
+- Pemantauan batas waktu penyelesaian.
+- Indikator persentase penyelesaian surat.
+- Pencarian dan penyaringan data berdasarkan status dan rentang tanggal.
 
 ### 5. Laporan dan Riwayat
 
 - Rekapitulasi data surat.
-- Laporan berdasarkan status dan unit.
+- Laporan berdasarkan status dan unit kerja.
 - Riwayat perubahan status surat.
 - Pencatatan aktivitas pengguna.
+- Pemantauan perjalanan surat melalui riwayat aktivitas.
 
 ### 6. Manajemen Pengguna
 
@@ -61,17 +69,22 @@ Preview online digunakan untuk keperluan demonstrasi dan evaluasi aplikasi.
 
 ### 7. Pengelolaan Dokumen
 
-- Upload dokumen PDF.
-- Preview dan download dokumen.
-- Pengelolaan bukti penerimaan dan bukti tindak lanjut.
-- Maksimal 10 dokumen per surat dengan ukuran maksimal 10 MB per file.
+- Upload dokumen dalam format PDF.
+- Preview dokumen melalui ikon lihat.
+- Download dokumen melalui ikon unduh.
+- Pengelolaan surat asli, bukti penerimaan, dan bukti tindak lanjut.
+- Upload dokumen bersifat opsional sesuai kebutuhan proses surat.
+- Ukuran maksimal file mengikuti validasi aplikasi, yaitu 10 MB per file.
 
-### 8. Tampilan Tabel
+### 8. Tampilan dan Antarmuka
 
+- Dashboard ringkasan informasi surat.
+- Tampilan tabel yang ringkas dan responsif.
 - Mode Compact untuk tampilan tabel yang lebih ringkas.
 - Mode Full untuk menampilkan isi tabel secara lebih lengkap.
 - Preferensi tampilan tersimpan pada browser masing-masing pengguna.
 - Tooltip informasi pada mode Compact.
+- Tampilan konsisten pada halaman Dashboard, Surat Masuk, Surat Keluar, Disposisi, Tindak Lanjut, Monitoring, Laporan, dan Riwayat Surat.
 
 ## Teknologi yang Digunakan
 
@@ -109,7 +122,7 @@ Pastikan Apache dan MySQL tersedia melalui XAMPP.
 
 ## Panduan Instalasi Lokal
 
-### 1. Install kebutuhan aplikasi
+### 1. Install Kebutuhan Aplikasi
 
 Install terlebih dahulu:
 
@@ -129,7 +142,7 @@ npm -v
 git --version
 ```
 
-### 2. Clone repository
+### 2. Clone Repository
 
 Buka terminal, kemudian masuk ke folder `htdocs` milik XAMPP.
 
@@ -151,7 +164,7 @@ Masuk ke folder proyek:
 cd sidilan
 ```
 
-### 3. Install dependency Laravel
+### 3. Install Dependency Laravel
 
 Jalankan:
 
@@ -159,7 +172,9 @@ Jalankan:
 composer install
 ```
 
-### 4. Buat file environment
+Tunggu sampai seluruh dependency PHP selesai diunduh.
+
+### 4. Buat File Environment
 
 Salin file `.env.example` menjadi `.env`.
 
@@ -188,15 +203,15 @@ DB_PASSWORD=
 
 Jika MySQL menggunakan password, sesuaikan nilai `DB_PASSWORD`.
 
-### 5. Buat database
+### 5. Buat Database
 
 1. Jalankan Apache dan MySQL melalui XAMPP.
 2. Buka browser.
-3. Akses http://localhost/phpmyadmin
+3. Akses http://localhost/phpmyadmin.
 4. Pilih menu Database.
 5. Buat database baru dengan nama `sidilan`.
 
-### 6. Generate application key
+### 6. Generate Application Key
 
 Jalankan:
 
@@ -204,7 +219,9 @@ Jalankan:
 php artisan key:generate
 ```
 
-### 7. Jalankan migration dan seeder
+Perintah ini akan membuat APP_KEY secara otomatis pada file `.env`.
+
+### 7. Jalankan Migration dan Seeder
 
 Jalankan:
 
@@ -212,7 +229,7 @@ Jalankan:
 php artisan migrate --seed
 ```
 
-Perintah ini akan:
+Perintah ini akan membuat struktur tabel database dan mengisi data awal yang disediakan oleh seeder, termasuk:
 
 - Membuat seluruh tabel database.
 - Mengisi data role pengguna.
@@ -224,7 +241,7 @@ Perintah ini akan:
 
 Catatan: Perintah ini digunakan untuk instalasi database baru. Jangan menggunakan `migrate:fresh` pada database yang sudah berisi data penting karena dapat menghapus seluruh tabel.
 
-### 8. Install dependency frontend
+### 8. Install Dependency Frontend
 
 Jalankan:
 
@@ -233,7 +250,7 @@ npm install
 npm run build
 ```
 
-### 9. Jalankan aplikasi
+### 9. Jalankan Aplikasi
 
 Jalankan server Laravel:
 
@@ -307,7 +324,9 @@ sidilan/
 ├── resources/
 │   └── views/
 │       ├── layouts/
-│       └── letters/
+│       ├── letters/
+│       ├── monitoring/
+│       └── reports/
 ├── routes/
 │   └── web.php
 ├── storage/

@@ -1,0 +1,1 @@
+{{-- SIDILAN: resources\views\letters\outgoing\index.blade.php --}}

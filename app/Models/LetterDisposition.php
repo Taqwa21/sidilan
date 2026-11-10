@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class LetterDisposition extends Model
 {
@@ -46,13 +45,5 @@ class LetterDisposition extends Model
     public function assignedUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to_user_id');
-    }
-
-    public function targets(): BelongsToMany
-    {
-        return $this->belongsToMany(
-            DispositionTarget::class,
-            'disposition_target_letter_disposition'
-        )->withTimestamps();
     }
 }

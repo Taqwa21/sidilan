@@ -9,7 +9,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
@@ -19,7 +18,7 @@ class LetterAttachmentController extends Controller
 {
     private function isAdmin(): bool
     {
-        return Auth::user()->role?->slug === 'admin';
+        return Auth::user()?->role?->slug === 'admin';
     }
 
     private function visibleLetter($id): Letter
@@ -30,15 +29,21 @@ class LetterAttachmentController extends Controller
             return $letter;
         }
 
-        $unitId = Auth::user()->unit_id;
+        $user = Auth::user();
 
-        $isSender = (int) $letter->sender_unit_id === (int) $unitId;
+        abort_unless(
+            $user && $user->unit_id,
+            403,
+            'Akun Anda belum memiliki unit kerja.'
+        );
 
-        $isReceiver = (int) $letter->receiver_unit_id === (int) $unitId
+        $isSender = (int) $letter->sender_unit_id === (int) $user->unit_id;
+
+        $isReceiver = (int) $letter->receiver_unit_id === (int) $user->unit_id
             && $letter->status !== 'draft';
 
         abort_unless(
-            $unitId && ($isSender || $isReceiver),
+            $isSender || $isReceiver,
             403,
             'Anda tidak memiliki akses ke surat ini.'
         );
@@ -71,9 +76,22 @@ class LetterAttachmentController extends Controller
     public function store(Request $request, $letterId)
     {
         $letter = $this->visibleLetter($letterId);
+        $user = Auth::user();
 
         abort_if(
-            in_array($letter->status, ['selesai', 'dibatalkan']),
+            $this->isAdmin(),
+            403,
+            'Administrator hanya memiliki akses pemantauan.'
+        );
+
+        abort_unless(
+            $user && $user->unit_id,
+            403,
+            'Akun Anda belum memiliki unit kerja.'
+        );
+
+        abort_if(
+            in_array($letter->status, ['selesai', 'dibatalkan'], true),
             403,
             'Surat yang sudah selesai atau dibatalkan tidak dapat menerima lampiran baru.'
         );
@@ -89,19 +107,25 @@ class LetterAttachmentController extends Controller
             ]
         ), [
             'files.required' => 'Pilih minimal satu dokumen.',
+            'files.array' => 'Format unggahan dokumen tidak valid.',
+            'files.min' => 'Pilih minimal satu dokumen.',
             'files.max' => 'Maksimal 10 file dalam satu kali unggah.',
+            'files.*.required' => 'Setiap dokumen wajib dipilih.',
+            'files.*.file' => 'File yang diunggah tidak valid.',
             'files.*.max' => 'Ukuran setiap file maksimal 10 MB.',
             'files.*.mimes' => 'Dokumen harus menggunakan format PDF.',
             'document_type.required' => 'Jenis dokumen wajib dipilih.',
+            'document_type.in' => 'Jenis dokumen tidak valid.',
         ]);
 
         $type = $validated['document_type'];
-        $user = Auth::user();
-        $followUp = null;
+        $userId = $user->id;
+        $unitId = (int) $user->unit_id;
+        $files = $validated['files'];
 
         if ($type === 'surat_asli') {
             abort_unless(
-                (int) $user->unit_id === (int) $letter->sender_unit_id,
+                $unitId === (int) $letter->sender_unit_id,
                 403,
                 'Hanya unit pengirim yang dapat mengunggah surat asli.'
             );
@@ -113,21 +137,20 @@ class LetterAttachmentController extends Controller
             );
         }
 
-        if ($type === 'bukti_penerimaan') {
+        if (in_array($type, [
+            'bukti_penerimaan',
+            'bukti_tindak_lanjut',
+        ], true)) {
             abort_unless(
-                (int) $user->unit_id === (int) $letter->receiver_unit_id,
+                $unitId === (int) $letter->receiver_unit_id,
                 403,
-                'Hanya unit penerima yang dapat mengunggah bukti penerimaan.'
+                'Hanya unit penerima yang dapat mengunggah dokumen ini.'
             );
         }
 
-        if ($type === 'bukti_tindak_lanjut') {
-            abort_unless(
-                (int) $user->unit_id === (int) $letter->receiver_unit_id,
-                403,
-                'Hanya unit penerima yang dapat mengunggah bukti tindak lanjut.'
-            );
+        $followUpId = null;
 
+        if ($type === 'bukti_tindak_lanjut') {
             $followUpData = $request->validate([
                 'letter_follow_up_id' => [
                     'required',
@@ -136,37 +159,54 @@ class LetterAttachmentController extends Controller
                 ],
             ]);
 
-            $followUp = LetterFollowUp::where('id', $followUpData['letter_follow_up_id'])
+            $followUpId = (int) $followUpData['letter_follow_up_id'];
+
+            LetterFollowUp::query()
+                ->whereKey($followUpId)
                 ->where('letter_id', $letter->id)
                 ->firstOrFail();
         }
 
         $storedPaths = [];
-        $files = $validated['files'];
 
         try {
             DB::transaction(function () use (
                 $letter,
                 $type,
                 $files,
-                $followUp,
+                $followUpId,
+                $userId,
+                $unitId,
                 &$storedPaths
             ) {
-                $lockedLetter = Letter::whereKey($letter->id)
+                $lockedLetter = Letter::query()
+                    ->whereKey($letter->id)
                     ->lockForUpdate()
                     ->firstOrFail();
 
+                // Periksa ulang hak akses dan status setelah surat dikunci.
+                abort_unless(
+                    (int) $lockedLetter->sender_unit_id === $unitId
+                        || (
+                            (int) $lockedLetter->receiver_unit_id === $unitId
+                            && $lockedLetter->status !== 'draft'
+                        ),
+                    403,
+                    'Anda tidak memiliki akses ke surat ini.'
+                );
+
                 abort_if(
-                    in_array($lockedLetter->status, ['selesai', 'dibatalkan']),
+                    in_array($lockedLetter->status, ['selesai', 'dibatalkan'], true),
                     403,
                     'Surat yang sudah selesai atau dibatalkan tidak dapat menerima lampiran baru.'
                 );
 
                 if ($type === 'surat_asli') {
                     abort_unless(
-                        $lockedLetter->status === 'draft',
+                        (int) $lockedLetter->sender_unit_id === $unitId
+                            && $lockedLetter->status === 'draft',
                         403,
-                        'Surat asli hanya dapat diunggah saat surat masih draft.'
+                        'Surat asli hanya dapat diunggah unit pengirim saat masih draft.'
                     );
 
                     if ($lockedLetter->attachments()
@@ -179,7 +219,28 @@ class LetterAttachmentController extends Controller
                     }
                 }
 
-                // Batas maksimal 10 lampiran untuk satu surat.
+                if (in_array($type, [
+                    'bukti_penerimaan',
+                    'bukti_tindak_lanjut',
+                ], true)) {
+                    abort_unless(
+                        (int) $lockedLetter->receiver_unit_id === $unitId,
+                        403,
+                        'Hanya unit penerima yang dapat mengunggah dokumen ini.'
+                    );
+                }
+
+                $followUp = null;
+
+                if ($type === 'bukti_tindak_lanjut') {
+                    $followUp = LetterFollowUp::query()
+                        ->whereKey($followUpId)
+                        ->where('letter_id', $lockedLetter->id)
+                        ->lockForUpdate()
+                        ->firstOrFail();
+                }
+
+                // Maksimal 10 lampiran untuk satu surat.
                 $existingCount = $lockedLetter->attachments()->count();
                 $newCount = count($files);
 
@@ -192,11 +253,7 @@ class LetterAttachmentController extends Controller
 
                 foreach ($files as $file) {
                     $originalName = $file->getClientOriginalName();
-
-                    $storedName = Str::uuid()->toString()
-                        . '.'
-                        . $file->getClientOriginalExtension();
-
+                    $storedName = Str::uuid()->toString() . '.pdf';
                     $directory = $lockedLetter->id . '/' . $type;
 
                     $path = $file->storeAs(
@@ -215,7 +272,7 @@ class LetterAttachmentController extends Controller
 
                     $attachment = $lockedLetter->attachments()->create([
                         'letter_follow_up_id' => $followUp?->id,
-                        'uploaded_by' => Auth::id(),
+                        'uploaded_by' => $userId,
                         'document_type' => $type,
                         'original_name' => $originalName,
                         'file_path' => $path,
@@ -226,15 +283,14 @@ class LetterAttachmentController extends Controller
                     $lockedLetter->histories()->create([
                         'old_status' => $lockedLetter->status,
                         'new_status' => $lockedLetter->status,
-                        'description' => 'Dokumen diunggah: '
-                            . $attachment->original_name,
-                        'changed_by' => Auth::id(),
+                        'description' => 'Dokumen diunggah: ' . $attachment->original_name,
+                        'changed_by' => $userId,
                     ]);
                 }
             });
         } catch (Throwable $e) {
-            // Hapus file fisik jika transaksi database gagal.
-            if (!empty($storedPaths)) {
+            // Bersihkan file fisik jika transaksi database gagal.
+            if ($storedPaths !== []) {
                 Storage::disk('letter_documents')->delete($storedPaths);
             }
 
@@ -246,7 +302,8 @@ class LetterAttachmentController extends Controller
 
     public function show($id)
     {
-        $attachment = LetterAttachment::with('letter')
+        $attachment = LetterAttachment::query()
+            ->with('letter')
             ->findOrFail($id);
 
         $this->visibleLetter($attachment->letter_id);
@@ -259,29 +316,22 @@ class LetterAttachmentController extends Controller
             'File dokumen tidak ditemukan.'
         );
 
-        $file = $disk->get($attachment->file_path);
-
-        $mimeType = $attachment->mime_type;
-
-        // Pastikan MIME type gambar sesuai ekstensi file.
-        $extension = strtolower(
-            pathinfo($attachment->original_name, PATHINFO_EXTENSION)
+        abort_unless(
+            $attachment->mime_type === 'application/pdf',
+            415,
+            'Pratinjau hanya tersedia untuk dokumen PDF.'
         );
 
-        $imageMimeTypes = [
-            'png' => 'image/png',
-            'jpg' => 'image/jpeg',
-            'jpeg' => 'image/jpeg',
-        ];
+        $originalName = str_replace(
+            ["\r", "\n", '"'],
+            '',
+            $attachment->original_name
+        );
 
-        if (isset($imageMimeTypes[$extension])) {
-            $mimeType = $imageMimeTypes[$extension];
-        }
-
-        return response($file, 200, [
-            'Content-Type' => $mimeType,
-            'Content-Disposition' => 'inline; filename="'
-                . addslashes($attachment->original_name) . '"',
+        return response($disk->get($attachment->file_path), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="document.pdf"; filename*=UTF-8\'\''
+                . rawurlencode($originalName),
             'X-Content-Type-Options' => 'nosniff',
             'Cache-Control' => 'private, no-store',
         ]);
@@ -289,7 +339,8 @@ class LetterAttachmentController extends Controller
 
     public function download($id)
     {
-        $attachment = LetterAttachment::findOrFail($id);
+        $attachment = LetterAttachment::query()
+            ->findOrFail($id);
 
         $this->visibleLetter($attachment->letter_id);
 
@@ -301,26 +352,25 @@ class LetterAttachmentController extends Controller
             'File dokumen tidak ditemukan.'
         );
 
-        return response()->download(
-            $disk->path($attachment->file_path),
+        return $disk->download(
+            $attachment->file_path,
             $attachment->original_name
         );
     }
 
     public function destroy($id)
     {
-        $attachment = LetterAttachment::with('letter')
+        $attachment = LetterAttachment::query()
             ->findOrFail($id);
 
         $letter = $this->visibleLetter($attachment->letter_id);
+        $user = Auth::user();
 
         abort_if(
-            in_array($letter->status, ['selesai', 'dibatalkan']),
+            in_array($letter->status, ['selesai', 'dibatalkan'], true),
             403,
             'Lampiran surat yang sudah selesai atau dibatalkan tidak dapat dihapus.'
         );
-
-        $user = Auth::user();
 
         abort_unless(
             $this->isAdmin()
@@ -329,17 +379,67 @@ class LetterAttachmentController extends Controller
             'Anda hanya dapat menghapus dokumen yang Anda unggah.'
         );
 
-        Storage::disk('letter_documents')->delete($attachment->file_path);
+        $filePath = null;
 
-        $letter->histories()->create([
-            'old_status' => $letter->status,
-            'new_status' => $letter->status,
-            'description' => 'Dokumen dihapus: '
-                . $attachment->original_name,
-            'changed_by' => Auth::id(),
-        ]);
+        DB::transaction(function () use (
+            $attachment,
+            $letter,
+            $user,
+            &$filePath
+        ) {
+            $lockedLetter = Letter::query()
+                ->whereKey($letter->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        $attachment->delete();
+            // Periksa ulang akses surat.
+            if (!$this->isAdmin()) {
+                abort_unless(
+                    (int) $lockedLetter->sender_unit_id === (int) $user->unit_id
+                        || (
+                            (int) $lockedLetter->receiver_unit_id === (int) $user->unit_id
+                            && $lockedLetter->status !== 'draft'
+                        ),
+                    403,
+                    'Anda tidak memiliki akses ke surat ini.'
+                );
+            }
+
+            abort_if(
+                in_array($lockedLetter->status, ['selesai', 'dibatalkan'], true),
+                403,
+                'Lampiran surat yang sudah selesai atau dibatalkan tidak dapat dihapus.'
+            );
+
+            $lockedAttachment = LetterAttachment::query()
+                ->whereKey($attachment->id)
+                ->where('letter_id', $lockedLetter->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            abort_unless(
+                $this->isAdmin()
+                    || (int) $lockedAttachment->uploaded_by === (int) $user->id,
+                403,
+                'Anda hanya dapat menghapus dokumen yang Anda unggah.'
+            );
+
+            $filePath = $lockedAttachment->file_path;
+
+            $lockedLetter->histories()->create([
+                'old_status' => $lockedLetter->status,
+                'new_status' => $lockedLetter->status,
+                'description' => 'Dokumen dihapus: ' . $lockedAttachment->original_name,
+                'changed_by' => $user->id,
+            ]);
+
+            $lockedAttachment->delete();
+        });
+
+        // File fisik dihapus setelah transaksi database berhasil.
+        if ($filePath) {
+            Storage::disk('letter_documents')->delete($filePath);
+        }
 
         return back()->with('success', 'Dokumen berhasil dihapus.');
     }

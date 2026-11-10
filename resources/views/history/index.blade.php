@@ -1,0 +1,1 @@
+{{-- SIDILAN: resources\views\history\index.blade.php --}}
