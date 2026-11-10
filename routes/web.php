@@ -51,19 +51,14 @@ Route::middleware('auth')->group(function () {
             } else {
                 $query->where(function ($q) use ($user) {
 
-                    // Pengirim tetap dapat melihat surat milik unitnya,
+                    // Pengirim dapat melihat surat milik unitnya,
                     // termasuk surat yang masih berstatus draft.
                     $q->where('sender_unit_id', $user->unit_id)
-<<<<<<< HEAD
 
                         // Penerima hanya dapat melihat surat yang sudah dikirim.
                         ->orWhere(function ($receiverQuery) use ($user) {
                             $receiverQuery
                                 ->where('receiver_unit_id', $user->unit_id)
-=======
-                        ->orWhere(function ($receiver) use ($user) {
-                            $receiver->where('receiver_unit_id', $user->unit_id)
->>>>>>> 5ec65f1 (docs: update README and improve document preview UI)
                                 ->where('status', '!=', 'draft');
                         });
                 });
