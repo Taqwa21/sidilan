@@ -431,18 +431,17 @@
 
                 <img src="{{ asset('images/logo-bnpb.png') }}" alt="Logo BNPB" class="brand-logo">
 
-                <h2>SIDILAN</h2>
+                <h2>SiDILAN</h2>
 
                 <div class="brand-accent"></div>
 
                 <h6 class="mb-3">
-                    Sistem Digital Tindak Lanjut
+                    Sistem Digital Monitoring Tindak Lanjut Surat
                 </h6>
 
                 <p>
-                    Sistem informasi untuk memantau proses surat,
-                    disposisi, dan tindak lanjut antara BNPB Logistik
-                    dan BNPB Pusat secara terintegrasi.
+                    Sistem informasi untuk memantau proses surat, disposisi dan tindak lanjut surat Kedeputian Bidang
+                    Logistik dan Peralatan secara terintegrasi
                 </p>
 
                 <div class="system-label">

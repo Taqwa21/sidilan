@@ -352,9 +352,14 @@ class LetterAttachmentController extends Controller
             'File dokumen tidak ditemukan.'
         );
 
-        return $disk->download(
-            $attachment->file_path,
-            $attachment->original_name
+        return response()->download(
+            $disk->path($attachment->file_path),
+            $attachment->original_name,
+            [
+                'Content-Type' => 'application/pdf',
+                'X-Content-Type-Options' => 'nosniff',
+                'Cache-Control' => 'private, no-store',
+            ]
         );
     }
 

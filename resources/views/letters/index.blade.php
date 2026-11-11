@@ -480,7 +480,7 @@
                             </button>
                         </div>
 
-                        @if (auth()->user()->role?->slug !== 'admin')
+                        @if (auth()->user()->role?->slug !== 'admin' && $pageDirection !== 'incoming')
                             <div class="col-xl-2 col-lg-2 col-md-3 col-6">
                                 <label class="filter-label d-none d-md-block">&nbsp;</label>
                                 <a href="{{ route('letters.create') }}" class="btn btn-add-letter w-100">

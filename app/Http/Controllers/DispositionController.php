@@ -8,6 +8,7 @@ use App\Models\LetterHistory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class DispositionController extends Controller
 {
@@ -38,9 +39,17 @@ class DispositionController extends Controller
         });
     }
 
+    /**
+     * Membuat disposisi oleh unit penerima.
+     * Deadline tidak dapat diatur oleh unit penerima.
+     */
     public function store(Request $request, int $id)
     {
-        abort_if($this->isAdmin(), 403, 'Administrator hanya memiliki akses pemantauan.');
+        abort_if(
+            $this->isAdmin(),
+            403,
+            'Administrator hanya memiliki akses pemantauan.'
+        );
 
         $user = Auth::user();
 
@@ -53,7 +62,6 @@ class DispositionController extends Controller
         $validated = $request->validate([
             'instruction' => ['required', 'string', 'max:5000'],
             'target_units' => ['nullable', 'string', 'max:1000'],
-            'deadline_at' => ['nullable', 'date'],
             'assigned_to_unit_id' => ['nullable', 'integer', 'exists:units,id'],
             'assigned_to_user_id' => ['nullable', 'integer', 'exists:users,id'],
         ]);
@@ -111,9 +119,7 @@ class DispositionController extends Controller
                 'target_units' => isset($validated['target_units'])
                     ? trim($validated['target_units'])
                     : null,
-                'deadline_at' => !empty($validated['deadline_at'])
-                    ? $validated['deadline_at'] . ' 23:59:59'
-                    : null,
+                'deadline_at' => null,
                 'status' => 'aktif',
                 'disposed_at' => now(),
             ]);
@@ -134,6 +140,101 @@ class DispositionController extends Controller
         return redirect()
             ->route('letters.show', $id)
             ->with('success', 'Disposisi surat berhasil disimpan.');
+    }
+
+    /**
+     * Memperbarui deadline oleh unit pengirim.
+     * Deadline boleh dikosongkan untuk menghapus batas waktu.
+     */
+    public function updateDeadline(Request $request, int $id)
+    {
+        abort_if(
+            $this->isAdmin(),
+            403,
+            'Administrator hanya memiliki akses pemantauan.'
+        );
+
+        $user = Auth::user();
+
+        abort_unless(
+            $user && $user->unit_id,
+            403,
+            'Akun Anda belum memiliki unit kerja.'
+        );
+
+        $validated = $request->validate([
+            'deadline_at' => ['nullable', 'date'],
+        ]);
+
+        DB::transaction(function () use ($id, $validated, $user) {
+            $letter = Letter::whereKey($id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            abort_unless(
+                (int) $letter->sender_unit_id === (int) $user->unit_id,
+                403,
+                'Hanya unit pengirim yang dapat memperbarui deadline.'
+            );
+
+            abort_unless(
+                $letter->status !== 'draft',
+                422,
+                'Deadline surat draft diperbarui melalui menu Edit Surat.'
+            );
+
+            abort_unless(
+                !in_array($letter->status, ['selesai', 'dibatalkan'], true),
+                422,
+                'Deadline surat yang sudah selesai atau dibatalkan tidak dapat diubah.'
+            );
+
+            $disposition = LetterDisposition::where('letter_id', $letter->id)
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
+                ->lockForUpdate()
+                ->first();
+
+            if (!$disposition) {
+                throw ValidationException::withMessages([
+                    'deadline_at' => 'Belum ada disposisi yang dapat diberikan deadline.',
+                ]);
+            }
+
+            $oldDeadline = $disposition->deadline_at?->format('Y-m-d');
+
+            $newDeadline = !empty($validated['deadline_at'])
+                ? $validated['deadline_at']
+                : null;
+
+            if ($oldDeadline === $newDeadline) {
+                throw ValidationException::withMessages([
+                    'deadline_at' => 'Deadline tidak mengalami perubahan.',
+                ]);
+            }
+
+            $disposition->update([
+                'deadline_at' => $newDeadline
+                    ? $newDeadline . ' 23:59:59'
+                    : null,
+            ]);
+
+            $description = $newDeadline
+                ? 'Batas penyelesaian disposisi diperbarui oleh unit pengirim menjadi ' . $newDeadline . '.'
+                : 'Batas penyelesaian disposisi dihapus oleh unit pengirim.';
+
+            LetterHistory::create([
+                'letter_id' => $letter->id,
+                'old_status' => $letter->status,
+                'new_status' => $letter->status,
+                'description' => $description,
+                'changed_by' => $user->id,
+            ]);
+        });
+
+        return redirect()
+            ->route('letters.show', $id)
+            ->with('success', 'Deadline berhasil diperbarui.');
     }
 
     public function index(Request $request)

@@ -7,7 +7,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="#123b63">
 
-    <title>@yield('title', 'SIDILAN - Sistem Digital Monitoring Tindak Lanjut Surat')</title>
+    <title>@yield('title', 'SiDILAN - Sistem Digital Monitoring Tindak Lanjut Surat')</title>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
@@ -874,7 +874,7 @@
             <img src="{{ asset('images/logo-bnpb.png') }}" alt="Logo BNPB" class="brand-logo">
 
             <div class="brand-text">
-                <h5 class="mb-0 fw-bold">SIDILAN</h5>
+                <h5 class="mb-0 fw-bold">SiDILAN</h5>
                 <small>Sistem Digital Monitoring Tindak Lanjut Surat</small>
             </div>
         </div>
@@ -975,7 +975,7 @@
                 </button>
 
                 <div>
-                    <h4>@yield('page_title', 'SIDILAN')</h4>
+                    <h4>@yield('page_title', 'SiDILAN')</h4>
 
                     <p class="topbar-subtitle">
                         @yield('page_subtitle', 'Sistem Digital Monitoring Tindak Lanjut Surat')
@@ -1020,7 +1020,7 @@
         @yield('content')
 
         <footer class="sidilan-footer">
-            SIDILAN &copy; {{ date('Y') }} — Sistem Digital Monitoring Tindak Lanjut Surat
+            SiDILAN &copy; {{ date('Y') }} — Sistem Digital Monitoring Tindak Lanjut Surat
         </footer>
 
     </main>

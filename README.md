@@ -1,18 +1,20 @@
 # SIDILAN
 
-### Sistem Digital Tindak Lanjut
+### Sistem Digital Monitoring Tindak Lanjut Surat
 
-SIDILAN (Sistem Digital Tindak Lanjut) adalah aplikasi berbasis web untuk membantu pengelolaan, pencatatan, pemantauan, dan tindak lanjut surat antara BNPB Logistik dan BNPB Pusat.
+SIDILAN adalah aplikasi berbasis web untuk membantu pengelolaan, pencatatan, pemantauan, dan tindak lanjut surat antara Deputi Bidang Logistik dan Peralatan dengan Direktorat terkait di BNPB.
 
 Aplikasi ini dikembangkan untuk mempermudah proses administrasi surat secara digital, mulai dari pencatatan surat masuk dan keluar, penerimaan surat, disposisi, tindak lanjut, hingga monitoring dan pelaporan.
 
-## Preview Online
+## Status Pengembangan
 
-Aplikasi SIDILAN dapat diakses melalui:
+SIDILAN masih dalam tahap pengembangan dan pengujian.
 
-https://sidilan-production.up.railway.app
-
-Preview online digunakan untuk keperluan demonstrasi dan evaluasi aplikasi.
+- Pengembangan dilakukan secara lokal menggunakan XAMPP.
+- Database pengembangan menggunakan MySQL.
+- Repository kode menggunakan GitHub.
+- Server produksi dan domain belum ditentukan.
+- Konfigurasi lokal dan produksi dipisahkan melalui file `.env`.
 
 ## Fitur Utama
 
@@ -22,7 +24,7 @@ Preview online digunakan untuk keperluan demonstrasi dan evaluasi aplikasi.
 - Pengelolaan nomor agenda dan nomor surat.
 - Informasi klasifikasi, tanggal surat, asal surat, dan perihal.
 - Pengisian uraian berkas dan posisi surat.
-- Pengelolaan dokumen surat dalam format PDF.
+- Pengelolaan dokumen surat.
 - Pengaturan hak akses surat berdasarkan unit kerja.
 - Pengelolaan surat dengan status draft sebelum dikirim.
 
@@ -39,7 +41,7 @@ Preview online digunakan untuk keperluan demonstrasi dan evaluasi aplikasi.
 - Pencatatan aktivitas tindak lanjut.
 - Pembaruan status penyelesaian.
 - Penambahan keterangan tindak lanjut.
-- Upload bukti tindak lanjut dalam format PDF secara opsional.
+- Upload bukti tindak lanjut secara opsional.
 - Pemantauan perkembangan tindak lanjut surat.
 
 ### 4. Monitoring Surat
@@ -63,28 +65,27 @@ Preview online digunakan untuk keperluan demonstrasi dan evaluasi aplikasi.
 ### 6. Manajemen Pengguna
 
 - Administrator.
-- Petugas BNPB Logistik.
-- Petugas BNPB Pusat.
+- Petugas Deputi Bidang Logistik dan Peralatan.
+- Petugas Direktorat.
 - Pembatasan akses berdasarkan peran dan unit kerja.
 
 ### 7. Pengelolaan Dokumen
 
-- Upload dokumen dalam format PDF.
-- Preview dokumen melalui ikon lihat.
-- Download dokumen melalui ikon unduh.
+- Upload dokumen.
+- Preview dokumen.
+- Download dokumen.
 - Pengelolaan surat asli, bukti penerimaan, dan bukti tindak lanjut.
 - Upload dokumen bersifat opsional sesuai kebutuhan proses surat.
-- Ukuran maksimal file mengikuti validasi aplikasi, yaitu 10 MB per file.
+- Ukuran maksimal file mengikuti validasi aplikasi.
 
 ### 8. Tampilan dan Antarmuka
 
 - Dashboard ringkasan informasi surat.
-- Tampilan tabel yang ringkas dan responsif.
-- Mode Compact untuk tampilan tabel yang lebih ringkas.
-- Mode Full untuk menampilkan isi tabel secara lebih lengkap.
+- Tampilan tabel yang responsif.
+- Mode Compact dan Full.
 - Preferensi tampilan tersimpan pada browser masing-masing pengguna.
 - Tooltip informasi pada mode Compact.
-- Tampilan konsisten pada halaman Dashboard, Surat Masuk, Surat Keluar, Disposisi, Tindak Lanjut, Monitoring, Laporan, dan Riwayat Surat.
+- Tampilan konsisten pada seluruh halaman aplikasi.
 
 ## Teknologi yang Digunakan
 
@@ -103,12 +104,11 @@ Preview online digunakan untuk keperluan demonstrasi dan evaluasi aplikasi.
 | Icon                  | Bootstrap Icons 1.13.2 |
 | PHP Dependency        | Composer               |
 | JavaScript Dependency | NPM                    |
-| Hosting Preview       | Railway                |
 | Version Control       | Git dan GitHub         |
 
 ## Persyaratan Sistem
 
-Sebelum melakukan instalasi, pastikan laptop sudah memiliki:
+Sebelum melakukan instalasi, pastikan perangkat sudah memiliki:
 
 1. Windows 10 atau Windows 11.
 2. XAMPP dengan PHP minimal 8.2.
@@ -124,7 +124,7 @@ Pastikan Apache dan MySQL tersedia melalui XAMPP.
 
 ### 1. Install Kebutuhan Aplikasi
 
-Install terlebih dahulu:
+Unduh dan instal kebutuhan berikut:
 
 - XAMPP: https://www.apachefriends.org/
 - Composer: https://getcomposer.org/download/
@@ -132,7 +132,7 @@ Install terlebih dahulu:
 - Git: https://git-scm.com/
 - Visual Studio Code: https://code.visualstudio.com/
 
-Setelah instalasi selesai, buka Command Prompt atau PowerShell dan periksa:
+Periksa instalasi melalui terminal:
 
 ```bash
 php -v
@@ -144,15 +144,15 @@ git --version
 
 ### 2. Clone Repository
 
-Buka terminal, kemudian masuk ke folder `htdocs` milik XAMPP.
+Buka PowerShell, kemudian masuk ke folder `htdocs` XAMPP.
 
 Contoh:
 
 ```powershell
-cd C:\xampp\htdocs
+cd C:\xampp8212\htdocs
 ```
 
-Clone repository SIDILAN:
+Clone repository:
 
 ```bash
 git clone https://github.com/Taqwa21/sidilan.git
@@ -164,6 +164,8 @@ Masuk ke folder proyek:
 cd sidilan
 ```
 
+Catatan: Repository SIDILAN bersifat privat sehingga pengguna harus memiliki akses GitHub.
+
 ### 3. Install Dependency Laravel
 
 Jalankan:
@@ -172,26 +174,28 @@ Jalankan:
 composer install
 ```
 
-Tunggu sampai seluruh dependency PHP selesai diunduh.
-
 ### 4. Buat File Environment
 
-Salin file `.env.example` menjadi `.env`.
+Salin `.env.example` menjadi `.env`.
 
-Pada Windows PowerShell:
+PowerShell:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Sesuaikan konfigurasi aplikasi dan database:
+Sesuaikan konfigurasi lokal:
 
-```env
-APP_NAME=SIDILAN
+```dotenv
+APP_NAME=SiDILAN
 APP_ENV=local
 APP_KEY=
 APP_DEBUG=true
 APP_URL=http://127.0.0.1:8000
+
+APP_LOCALE=id
+APP_FALLBACK_LOCALE=en
+APP_FAKER_LOCALE=id_ID
 
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
@@ -219,7 +223,7 @@ Jalankan:
 php artisan key:generate
 ```
 
-Perintah ini akan membuat APP_KEY secara otomatis pada file `.env`.
+Perintah tersebut akan membuat APP_KEY secara otomatis pada file `.env`.
 
 ### 7. Jalankan Migration dan Seeder
 
@@ -229,17 +233,16 @@ Jalankan:
 php artisan migrate --seed
 ```
 
-Perintah ini akan membuat struktur tabel database dan mengisi data awal yang disediakan oleh seeder, termasuk:
+Perintah tersebut akan membuat struktur tabel dan mengisi data awal aplikasi, meliputi:
 
-- Membuat seluruh tabel database.
-- Mengisi data role pengguna.
-- Mengisi data unit kerja.
-- Mengisi data klasifikasi surat.
-- Membuat atau memperbarui akun administrator.
-- Membuat atau memperbarui akun petugas Logistik dan Pusat.
-- Mengisi target disposisi awal.
+- Role pengguna.
+- Unit kerja.
+- Klasifikasi surat.
+- Target disposisi.
 
-Catatan: Perintah ini digunakan untuk instalasi database baru. Jangan menggunakan `migrate:fresh` pada database yang sudah berisi data penting karena dapat menghapus seluruh tabel.
+Seeder akun demo hanya dijalankan ketika aplikasi menggunakan lingkungan `local`.
+
+Jangan menggunakan `migrate:fresh` pada database yang sudah berisi data penting karena perintah tersebut dapat menghapus seluruh tabel.
 
 ### 8. Install Dependency Frontend
 
@@ -264,9 +267,9 @@ http://127.0.0.1:8000
 
 SIDILAN sekarang sudah dapat digunakan secara lokal.
 
-## Akun Demo
+## Akun Demo Lokal
 
-Akun berikut disediakan untuk kebutuhan demonstrasi dan pengujian.
+Akun berikut disediakan untuk kebutuhan demonstrasi dan pengujian lokal.
 
 | Peran            | Email                  | Password    |
 | ---------------- | ---------------------- | ----------- |
@@ -274,61 +277,65 @@ Akun berikut disediakan untuk kebutuhan demonstrasi dan pengujian.
 | Petugas Logistik | logistik@sidilan.local | logistik123 |
 | Petugas Pusat    | pusat@sidilan.local    | pusat123    |
 
-Seeder menggunakan mekanisme update atau insert berdasarkan email. Jika akun sudah tersedia, data nama, password, role, dan unit akan diperbarui sesuai konfigurasi seeder.
+Akun demo dibuat melalui seeder yang hanya dapat dijalankan pada lingkungan `local`.
 
-Catatan: Password sederhana ini hanya untuk kebutuhan preview dan pengujian. Jangan digunakan untuk lingkungan produksi.
+Catatan: Akun dan password tersebut hanya untuk pengujian lokal. Jangan digunakan pada lingkungan produksi.
 
-## Deployment Railway
+## Persiapan Produksi
 
-SIDILAN menggunakan Railway sebagai platform hosting untuk preview online.
+SIDILAN dirancang agar dapat dipasang pada server yang mendukung PHP, Laravel, dan MySQL.
 
-Konfigurasi deployment meliputi:
+Konfigurasi produksi menggunakan file `.env` tersendiri dan tidak menggunakan konfigurasi database lokal XAMPP.
 
-- Repository GitHub sebagai sumber kode.
-- Laravel sebagai aplikasi backend.
-- MySQL Railway sebagai database online.
-- Environment Variables untuk konfigurasi aplikasi dan database.
-- Pre-deploy migration menggunakan perintah:
+Persiapan produksi meliputi:
+
+- Menyediakan server dengan PHP dan ekstensi yang dibutuhkan Laravel.
+- Menyediakan database MySQL.
+- Mengatur domain dan HTTPS.
+- Mengatur environment variables.
+- Mengatur document root ke direktori `public`.
+- Menjalankan migration dan seeder data master.
+- Membuat akun Administrator pertama melalui perintah Artisan.
+
+Perintah inisialisasi database produksi:
 
 ```bash
 php artisan migrate --force
+php artisan db:seed --force
 ```
 
-Untuk inisialisasi database pertama kali, migration dan seeder dapat dijalankan menggunakan:
+Setelah database siap, buat akun Administrator pertama:
 
 ```bash
-php artisan migrate --force && php artisan db:seed --force
+php artisan sidilan:buat-admin
 ```
 
-Perintah seeding tersebut digunakan untuk membuat data awal dan akun demo. Setelah inisialisasi berhasil, kembalikan Pre-deploy Command menjadi `php artisan migrate --force` agar seeder tidak dijalankan kembali pada setiap deployment.
+Perintah tersebut hanya dapat dijalankan ketika `APP_ENV=production`.
 
-Setiap perubahan yang di-push ke branch `main` GitHub akan memicu deployment otomatis melalui Railway apabila integrasi deployment aktif.
+Setelah Administrator berhasil dibuat, akun petugas dapat ditambahkan melalui halaman manajemen pengguna aplikasi.
 
-Alamat preview:
-
-https://sidilan-production.up.railway.app
+Detail deployment akan disesuaikan setelah server dan penyedia hosting ditentukan.
 
 ## Struktur Proyek
 
 ```text
 sidilan/
 ├── app/
+│   ├── Console/
+│   │   └── Commands/
 │   ├── Http/
 │   │   └── Controllers/
 │   └── Models/
+├── bootstrap/
 ├── config/
 ├── database/
 │   ├── migrations/
+│   ├── factories/
 │   └── seeders/
 ├── public/
 ├── resources/
 │   └── views/
-│       ├── layouts/
-│       ├── letters/
-│       ├── monitoring/
-│       └── reports/
 ├── routes/
-│   └── web.php
 ├── storage/
 ├── tests/
 ├── .env.example

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Dashboard - SIDILAN')
+@section('title', 'Dashboard - SiDILAN')
 @section('page_title', 'Dashboard')
 @section('page_subtitle', 'Ringkasan dan pemantauan tindak lanjut surat')
 
@@ -15,7 +15,7 @@
                     PUSAT INFORMASI SIDILAN
                 </div>
 
-                <h4>Selamat Datang di SIDILAN</h4>
+                <h4>Selamat Datang di SiDILAN</h4>
 
                 <p>
                     Pantau perkembangan surat, disposisi, dan tindak lanjut

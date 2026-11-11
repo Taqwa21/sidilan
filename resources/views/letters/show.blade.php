@@ -1,6 +1,8 @@
 @extends('layouts.app')
 
-@section('title', 'Detail Surat - SIDILAN')
+@section('title', ($pageTitle ?? 'Daftar Surat') . ' - SIDILAN')
+@section('page_title', $pageTitle ?? 'Detail Surat')
+@section('page_subtitle', 'Informasi lengkap mengenai data dan perkembangan surat.')
 
 @section('content')
     @php
@@ -21,11 +23,14 @@
         $isAdmin = auth()->user()->role?->slug === 'admin';
 
         $canUploadReceipt = !$isAdmin && $isReceiver && !$isFinished && $currentStatus !== 'draft';
-        // Hanya unit penerima yang dapat memperbarui posisi surat.
         $canUpdatePosition = !$isAdmin && $isReceiver && !$isFinished;
 
         $latestDisposition = $letter->dispositions->sortByDesc('created_at')->first();
         $latestFollowUp = $letter->followUps->sortByDesc('created_at')->first();
+
+        // Deadline hanya dapat diperbarui oleh unit pengirim setelah surat dikirim.
+        $canUpdateDeadline =
+            !$isAdmin && $isSender && $currentStatus !== 'draft' && !$isFinished && $latestDisposition !== null;
 
         $mainAttachments = $letter->attachments->where('document_type', 'surat_asli')->sortByDesc('created_at');
 
@@ -37,7 +42,6 @@
             ->where('document_type', 'bukti_tindak_lanjut')
             ->sortByDesc('created_at');
 
-        // Tentukan halaman tujuan tombol Kembali.
         $previousUrl = url()->previous();
         $currentUrl = url()->current();
         $previousPath = parse_url($previousUrl, PHP_URL_PATH) ?? '';
@@ -577,9 +581,15 @@
                                 <span class="section-icon"><i class="bi bi-send"></i></span>
                                 Informasi Pengiriman
                             </div>
-
                             <div class="row g-2">
                                 <div class="col-12">
+                                    <div class="info-item">
+                                        <div class="info-label">Dikirim Oleh</div>
+                                        <div class="info-value">{{ $letter->sender->name ?? '-' }}</div>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-6">
                                     <div class="info-item">
                                         <div class="info-label">Unit Pengirim</div>
                                         <div class="info-value">{{ $letter->senderUnit->name ?? '-' }}</div>
@@ -588,12 +598,12 @@
 
                                 <div class="col-sm-6">
                                     <div class="info-item">
-                                        <div class="info-label">Dikirim Oleh</div>
-                                        <div class="info-value">{{ $letter->sender->name ?? '-' }}</div>
+                                        <div class="info-label">Unit Penerima</div>
+                                        <div class="info-value">{{ $letter->receiverUnit->name ?? '-' }}</div>
                                     </div>
                                 </div>
 
-                                <div class="col-sm-6">
+                                <div class="col-12">
                                     <div class="info-item">
                                         <div class="info-label">Waktu Pengiriman</div>
                                         <div class="info-value">
@@ -850,6 +860,53 @@
                         </div>
                     @endif
 
+                    {{-- PEMBARUAN DEADLINE OLEH PENGIRIM --}}
+                    @if ($canUpdateDeadline)
+                        <div class="action-card">
+                            <div class="action-card-header">
+                                <span class="action-icon"><i class="bi bi-calendar-event"></i></span>
+                                Perbarui Batas Penyelesaian
+                            </div>
+
+                            <div class="action-card-body">
+                                <p class="text-muted small">
+                                    Unit pengirim dapat memperbarui batas penyelesaian surat.
+                                    Kosongkan tanggal jika batas penyelesaian tidak ditentukan.
+                                </p>
+
+                                <form action="{{ route('letters.dispositions.deadline.update', $letter->id) }}"
+                                    method="POST">
+                                    @csrf
+                                    @method('PUT')
+
+                                    <div class="row align-items-end g-3">
+                                        <div class="col-md-9">
+                                            <label for="update_deadline_at" class="form-label">
+                                                Batas Penyelesaian
+                                                <span class="text-muted">(Opsional)</span>
+                                            </label>
+
+                                            <input type="date" name="deadline_at" id="update_deadline_at"
+                                                class="form-control @error('deadline_at') is-invalid @enderror"
+                                                value="{{ old('deadline_at', $latestDisposition->deadline_at?->format('Y-m-d')) }}">
+
+                                            @error('deadline_at')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+
+                                        <div class="col-md-3">
+                                            <button type="submit" class="btn btn-primary w-100">
+                                                <i class="bi bi-save me-1"></i>
+                                                Simpan Deadline
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    @endif
+
                     {{-- UPDATE POSISI --}}
                     @if ($canUpdatePosition)
                         <div class="action-card">
@@ -972,21 +1029,6 @@
                                         </small>
 
                                         @error('target_units')
-                                            <div class="invalid-feedback">{{ $message }}</div>
-                                        @enderror
-                                    </div>
-
-                                    <div class="mb-3">
-                                        <label for="deadline_at" class="form-label">
-                                            Batas Waktu Penyelesaian
-                                            <span class="text-muted">(Opsional)</span>
-                                        </label>
-
-                                        <input type="date" name="deadline_at" id="deadline_at"
-                                            class="form-control @error('deadline_at') is-invalid @enderror"
-                                            value="{{ old('deadline_at') }}">
-
-                                        @error('deadline_at')
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror
                                     </div>
@@ -1179,6 +1221,7 @@
                     @if (
                         !$isAdmin &&
                             !$canUpdatePosition &&
+                            !$canUpdateDeadline &&
                             !($isSender && $currentStatus === 'draft') &&
                             !($isReceiver && $currentStatus !== 'draft'))
                         <div class="empty-state">

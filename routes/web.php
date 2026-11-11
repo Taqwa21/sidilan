@@ -173,8 +173,14 @@ Route::middleware('auth')->group(function () {
     Route::delete('/dokumen/{id}', [LetterAttachmentController::class, 'destroy'])->name('letters.attachments.destroy');
 
     // Disposisi
-    Route::post('/surat/{id}/disposisi', [DispositionController::class, 'store'])->name('letters.dispositions.store');
-    Route::get('/disposisi', [DispositionController::class, 'index'])->name('dispositions.index');
+    Route::post('/surat/{id}/disposisi', [DispositionController::class, 'store'])
+        ->name('letters.dispositions.store');
+
+    Route::put('/surat/{id}/disposisi/deadline', [DispositionController::class, 'updateDeadline'])
+        ->name('letters.dispositions.deadline.update');
+
+    Route::get('/disposisi', [DispositionController::class, 'index'])
+        ->name('dispositions.index');
 
     // Tindak lanjut
     Route::post('/surat/{id}/tindak-lanjut', [FollowUpController::class, 'store'])->name('letters.followups.store');

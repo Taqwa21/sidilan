@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Letter;
+use App\Models\LetterAttachment;
 use App\Models\LetterDisposition;
 use App\Models\LetterHistory;
 use App\Models\Unit;
@@ -11,6 +12,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class LetterController extends Controller
 {
@@ -72,8 +75,7 @@ class LetterController extends Controller
     }
 
     /**
-     * Menyimpan, memperbarui, atau menghapus disposisi awal
-     * selama surat masih berstatus draft.
+     * Menyimpan, memperbarui, atau menghapus disposisi awal.
      */
     private function syncInitialDisposition(
         Letter $letter,
@@ -82,13 +84,14 @@ class LetterController extends Controller
     ): void {
         $instruction = trim($validated['instruction'] ?? '');
         $targetUnits = trim($validated['target_units'] ?? '');
+        $deadline = $validated['deadline_at'] ?? null;
 
         $existingDisposition = $letter->dispositions()
             ->where('created_by', $user->id)
             ->orderBy('id')
             ->first();
 
-        if ($instruction === '' && $targetUnits === '') {
+        if ($instruction === '' && $targetUnits === '' && !$deadline) {
             if ($existingDisposition) {
                 $existingDisposition->delete();
 
@@ -104,10 +107,14 @@ class LetterController extends Controller
         }
 
         if ($instruction === '') {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'instruction' => 'Instruksi disposisi wajib diisi jika Unit Kerja diisi.',
+            throw ValidationException::withMessages([
+                'instruction' => 'Instruksi disposisi wajib diisi jika Unit Kerja atau batas penyelesaian diisi.',
             ]);
         }
+
+        $deadlineAt = $deadline
+            ? $deadline . ' 23:59:59'
+            : null;
 
         $dispositionData = [
             'created_by' => $user->id,
@@ -115,7 +122,7 @@ class LetterController extends Controller
             'assigned_to_user_id' => null,
             'instruction' => $instruction,
             'target_units' => $targetUnits !== '' ? $targetUnits : null,
-            'deadline_at' => null,
+            'deadline_at' => $deadlineAt,
             'status' => 'aktif',
             'disposed_at' => now(),
         ];
@@ -134,12 +141,59 @@ class LetterController extends Controller
             $historyDescription .= ' | Unit Kerja: ' . $targetUnits;
         }
 
+        if ($deadline) {
+            $historyDescription .= ' | Batas Penyelesaian: ' . $deadline;
+        } else {
+            $historyDescription .= ' | Batas Penyelesaian: Tidak ditentukan';
+        }
+
         $this->recordHistory(
             $letter,
             'draft',
             'draft',
             $historyDescription
         );
+    }
+
+    /**
+     * Validasi tanggal deadline untuk kolom TIMESTAMP MySQL.
+     */
+    private function deadlineRules(): array
+    {
+        return [
+            'nullable',
+            'date_format:Y-m-d',
+            'after_or_equal:1970-01-01',
+            'before_or_equal:2038-01-18',
+        ];
+    }
+
+    /**
+     * Menyimpan PDF surat asli.
+     */
+    private function saveOriginalPdf(Letter $letter, $file, $user): string
+    {
+        $path = $file->store(
+            $letter->id . '/surat_asli',
+            'letter_documents'
+        );
+
+        if (!$path) {
+            throw new \RuntimeException('PDF surat asli gagal disimpan.');
+        }
+
+        LetterAttachment::create([
+            'letter_id' => $letter->id,
+            'letter_follow_up_id' => null,
+            'uploaded_by' => $user->id,
+            'document_type' => 'surat_asli',
+            'original_name' => $file->getClientOriginalName(),
+            'file_path' => $path,
+            'mime_type' => $file->getMimeType(),
+            'file_size' => $file->getSize(),
+        ]);
+
+        return $path;
     }
 
     public function create()
@@ -165,6 +219,14 @@ class LetterController extends Controller
             'subject' => ['required', 'string', 'max:255'],
             'instruction' => ['nullable', 'string', 'max:5000'],
             'target_units' => ['nullable', 'string', 'max:1000'],
+            'deadline_at' => $this->deadlineRules(),
+            'surat_asli' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
+        ], [
+            'surat_asli.mimes' => 'Dokumen surat asli harus berformat PDF.',
+            'surat_asli.max' => 'Ukuran PDF surat asli maksimal 10 MB.',
+            'deadline_at.after_or_equal' => 'Tanggal deadline tidak boleh sebelum 1 Januari 1970.',
+            'deadline_at.before_or_equal' => 'Tanggal deadline maksimal 18 Januari 2038.',
+            'deadline_at.date_format' => 'Format tanggal deadline tidak valid.',
         ]);
 
         $validated['origin'] = trim($validated['origin']);
@@ -174,36 +236,64 @@ class LetterController extends Controller
         $senderUnitId = (int) $user->unit_id;
         $receiverUnitId = $this->pairedUnitId($senderUnitId);
 
-        $letter = DB::transaction(function () use (
-            $validated,
-            $user,
-            $senderUnitId,
-            $receiverUnitId
-        ) {
-            $letter = Letter::create([
-                'letter_number' => $validated['letter_number'],
-                'letter_date' => $validated['letter_date'],
-                'origin' => $validated['origin'],
-                'subject' => $validated['subject'],
-                'sender_unit_id' => $senderUnitId,
-                'receiver_unit_id' => $receiverUnitId,
-                'classification_id' => null,
-                'description' => null,
-                'status' => 'draft',
-                'created_by' => $user->id,
-            ]);
+        $pdf = $request->file('surat_asli');
+        $newFilePath = null;
 
-            $this->recordHistory(
-                $letter,
-                'draft',
-                'draft',
-                'Surat dibuat sebagai draft.'
-            );
+        try {
+            $letter = DB::transaction(function () use (
+                $validated,
+                $user,
+                $senderUnitId,
+                $receiverUnitId,
+                $pdf,
+                &$newFilePath
+            ) {
+                $letter = Letter::create([
+                    'letter_number' => $validated['letter_number'],
+                    'letter_date' => $validated['letter_date'],
+                    'origin' => $validated['origin'],
+                    'subject' => $validated['subject'],
+                    'sender_unit_id' => $senderUnitId,
+                    'receiver_unit_id' => $receiverUnitId,
+                    'classification_id' => null,
+                    'description' => null,
+                    'status' => 'draft',
+                    'created_by' => $user->id,
+                ]);
 
-            $this->syncInitialDisposition($letter, $validated, $user);
+                $this->recordHistory(
+                    $letter,
+                    'draft',
+                    'draft',
+                    'Surat dibuat sebagai draft.'
+                );
 
-            return $letter;
-        });
+                $this->syncInitialDisposition($letter, $validated, $user);
+
+                if ($pdf) {
+                    $newFilePath = $this->saveOriginalPdf(
+                        $letter,
+                        $pdf,
+                        $user
+                    );
+
+                    $this->recordHistory(
+                        $letter,
+                        'draft',
+                        'draft',
+                        'PDF surat asli berhasil diunggah saat pembuatan surat.'
+                    );
+                }
+
+                return $letter;
+            });
+        } catch (Throwable $e) {
+            if ($newFilePath) {
+                Storage::disk('letter_documents')->delete($newFilePath);
+            }
+
+            throw $e;
+        }
 
         return redirect()
             ->route('letters.show', $letter->id)
@@ -248,7 +338,9 @@ class LetterController extends Controller
 
         abort_if(!$user->unit_id, 403, 'Akun Anda belum memiliki unit kerja.');
 
-        $letter = $this->visibleLetters()->findOrFail($id);
+        $letter = $this->visibleLetters()
+            ->with('attachments.uploader')
+            ->findOrFail($id);
 
         abort_unless(
             (int) $letter->sender_unit_id === (int) $user->unit_id,
@@ -304,6 +396,15 @@ class LetterController extends Controller
             'subject' => ['required', 'string', 'max:255'],
             'instruction' => ['nullable', 'string', 'max:5000'],
             'target_units' => ['nullable', 'string', 'max:1000'],
+            'deadline_at' => $this->deadlineRules(),
+            'surat_asli' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
+            'remove_surat_asli' => ['nullable', 'boolean'],
+        ], [
+            'surat_asli.mimes' => 'Dokumen surat asli harus berformat PDF.',
+            'surat_asli.max' => 'Ukuran PDF surat asli maksimal 10 MB.',
+            'deadline_at.after_or_equal' => 'Tanggal deadline tidak boleh sebelum 1 Januari 1970.',
+            'deadline_at.before_or_equal' => 'Tanggal deadline maksimal 18 Januari 2038.',
+            'deadline_at.date_format' => 'Format tanggal deadline tidak valid.',
         ]);
 
         $validated['origin'] = trim($validated['origin']);
@@ -312,46 +413,110 @@ class LetterController extends Controller
 
         $pairedUnitId = $this->pairedUnitId((int) $user->unit_id);
 
-        DB::transaction(function () use (
-            $letter,
-            $validated,
-            $user,
-            $pairedUnitId
-        ) {
-            $lockedLetter = Letter::whereKey($letter->id)
-                ->lockForUpdate()
-                ->firstOrFail();
+        $pdf = $request->file('surat_asli');
+        $removeOriginalPdf = $request->boolean('remove_surat_asli');
 
-            abort_unless(
-                (int) $lockedLetter->sender_unit_id === (int) $user->unit_id,
-                403,
-                'Anda tidak berhak mengedit surat ini.'
-            );
+        $newFilePath = null;
+        $oldFilePaths = [];
 
-            abort_unless(
-                $lockedLetter->status === 'draft',
-                422,
-                'Surat tidak lagi berstatus draft dan tidak dapat diedit.'
-            );
+        try {
+            DB::transaction(function () use (
+                $letter,
+                $validated,
+                $user,
+                $pairedUnitId,
+                $pdf,
+                $removeOriginalPdf,
+                &$newFilePath,
+                &$oldFilePaths
+            ) {
+                $lockedLetter = Letter::whereKey($letter->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
 
-            $lockedLetter->update([
-                'letter_number' => $validated['letter_number'],
-                'letter_date' => $validated['letter_date'],
-                'origin' => $validated['origin'],
-                'subject' => $validated['subject'],
-                'sender_unit_id' => $user->unit_id,
-                'receiver_unit_id' => $pairedUnitId,
-            ]);
+                abort_unless(
+                    (int) $lockedLetter->sender_unit_id === (int) $user->unit_id,
+                    403,
+                    'Anda tidak berhak mengedit surat ini.'
+                );
 
-            $this->recordHistory(
-                $lockedLetter,
-                'draft',
-                'draft',
-                'Data surat draft diperbarui.'
-            );
+                abort_unless(
+                    $lockedLetter->status === 'draft',
+                    422,
+                    'Surat tidak lagi berstatus draft dan tidak dapat diedit.'
+                );
 
-            $this->syncInitialDisposition($lockedLetter, $validated, $user);
-        });
+                $lockedLetter->update([
+                    'letter_number' => $validated['letter_number'],
+                    'letter_date' => $validated['letter_date'],
+                    'origin' => $validated['origin'],
+                    'subject' => $validated['subject'],
+                    'sender_unit_id' => $user->unit_id,
+                    'receiver_unit_id' => $pairedUnitId,
+                ]);
+
+                $this->recordHistory(
+                    $lockedLetter,
+                    'draft',
+                    'draft',
+                    'Data surat draft diperbarui.'
+                );
+
+                $this->syncInitialDisposition($lockedLetter, $validated, $user);
+
+                $oldAttachments = $lockedLetter->attachments()
+                    ->where('document_type', 'surat_asli')
+                    ->get();
+
+                // Jika PDF baru dipilih, ganti PDF lama.
+                if ($pdf) {
+                    $newFilePath = $this->saveOriginalPdf(
+                        $lockedLetter,
+                        $pdf,
+                        $user
+                    );
+
+                    foreach ($oldAttachments as $oldAttachment) {
+                        $oldFilePaths[] = $oldAttachment->file_path;
+                        $oldAttachment->delete();
+                    }
+
+                    $this->recordHistory(
+                        $lockedLetter,
+                        'draft',
+                        'draft',
+                        'PDF surat asli diganti dengan dokumen baru.'
+                    );
+                }
+                // Jika tidak upload PDF baru tetapi checkbox hapus dipilih.
+                elseif ($removeOriginalPdf) {
+                    foreach ($oldAttachments as $oldAttachment) {
+                        $oldFilePaths[] = $oldAttachment->file_path;
+                        $oldAttachment->delete();
+                    }
+
+                    if ($oldAttachments->isNotEmpty()) {
+                        $this->recordHistory(
+                            $lockedLetter,
+                            'draft',
+                            'draft',
+                            'PDF surat asli dihapus melalui halaman edit surat.'
+                        );
+                    }
+                }
+            });
+        } catch (Throwable $e) {
+            if ($newFilePath) {
+                Storage::disk('letter_documents')->delete($newFilePath);
+            }
+
+            throw $e;
+        }
+
+        // File lama dihapus setelah transaksi database berhasil.
+        if (!empty($oldFilePaths)) {
+            Storage::disk('letter_documents')->delete($oldFilePaths);
+        }
 
         return redirect()
             ->route('letters.show', $letter->id)
@@ -554,7 +719,7 @@ class LetterController extends Controller
             );
 
             if ($letter->status === $validated['status']) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
+                throw ValidationException::withMessages([
                     'status' => 'Status surat sudah sesuai dengan pilihan tersebut.',
                 ]);
             }
@@ -617,7 +782,7 @@ class LetterController extends Controller
             $newPosition = trim($validated['position']);
 
             if ($oldPosition === $newPosition) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
+                throw ValidationException::withMessages([
                     'position' => 'Posisi surat tidak mengalami perubahan.',
                 ]);
             }

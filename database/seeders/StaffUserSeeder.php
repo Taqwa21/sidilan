@@ -10,6 +10,13 @@ class StaffUserSeeder extends Seeder
 {
     public function run(): void
     {
+        // Seeder akun petugas demo hanya boleh dijalankan di lokal.
+        if (!app()->environment('local')) {
+            throw new \RuntimeException(
+                'StaffUserSeeder hanya boleh dijalankan di lingkungan lokal.'
+            );
+        }
+
         $accounts = [
             [
                 'name' => 'Petugas Logistik',
@@ -56,7 +63,7 @@ class StaffUserSeeder extends Seeder
             );
 
             $this->command->info(
-                "Akun {$account['email']} berhasil dibuat atau diperbarui."
+                "Akun demo {$account['email']} berhasil dibuat atau diperbarui."
             );
         }
     }

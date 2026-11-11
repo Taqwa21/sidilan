@@ -10,6 +10,13 @@ class AdminUserSeeder extends Seeder
 {
     public function run(): void
     {
+        // Seeder akun demo hanya boleh dijalankan di lokal.
+        if (!app()->environment('local')) {
+            throw new \RuntimeException(
+                'AdminUserSeeder hanya boleh dijalankan di lingkungan lokal.'
+            );
+        }
+
         $adminRoleId = DB::table('roles')
             ->where('slug', 'admin')
             ->value('id');
@@ -34,7 +41,7 @@ class AdminUserSeeder extends Seeder
         );
 
         $this->command->info(
-            'Akun administrator berhasil dibuat atau diperbarui.'
+            'Akun administrator lokal berhasil dibuat atau diperbarui.'
         );
     }
 }

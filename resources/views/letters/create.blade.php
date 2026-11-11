@@ -18,19 +18,35 @@
             </div>
 
             <div class="form-panel-body">
-                <form action="{{ route('letters.store') }}" method="POST">
+
+                @if ($errors->any())
+                    <div class="alert alert-danger form-error-alert">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            <span>Periksa kembali data yang dimasukkan.</span>
+                        </div>
+                        <ul class="mb-0">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+
+                <div class="system-info">
+                    <i class="bi bi-info-circle-fill"></i>
+                    <div>
+                        <div>Unit pengirim ditentukan otomatis berdasarkan akun yang sedang login.</div>
+                        <div>Unit penerima diarahkan otomatis ke unit pasangan oleh sistem SIDILAN.</div>
+                        <div>Disposisi, unit kerja, deadline, dan PDF surat asli dapat diisi sekarang atau dilengkapi
+                            kemudian.</div>
+                    </div>
+                </div>
+
+                <form action="{{ route('letters.store') }}" method="POST" enctype="multipart/form-data">
                     @csrf
 
-                    <div class="system-info">
-                        <i class="bi bi-info-circle-fill"></i>
-                        <div>
-                            <div>Unit pengirim ditentukan otomatis berdasarkan akun yang sedang login.</div>
-                            <div>Unit penerima diarahkan otomatis ke unit pasangan oleh sistem SIDILAN.</div>
-                            <div>Disposisi dan unit kerja dapat diisi sekarang atau ditambahkan kemudian oleh unit penerima.
-                            </div>
-                        </div>
-                    </div>
-
+                    {{-- Informasi Surat --}}
                     <div class="form-section">
                         <div class="section-heading">
                             <div class="section-icon">
@@ -44,8 +60,9 @@
 
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label for="origin" class="form-label">Pengirim Surat <span
-                                        class="required-mark">*</span></label>
+                                <label for="origin" class="form-label">
+                                    Pengirim Surat <span class="required-mark">*</span>
+                                </label>
                                 <input type="text" id="origin" name="origin"
                                     class="form-control @error('origin') is-invalid @enderror" value="{{ old('origin') }}"
                                     placeholder="Masukkan nama pengirim surat" required>
@@ -55,8 +72,9 @@
                             </div>
 
                             <div class="col-md-6">
-                                <label for="letter_number" class="form-label">Nomor Surat <span
-                                        class="required-mark">*</span></label>
+                                <label for="letter_number" class="form-label">
+                                    Nomor Surat <span class="required-mark">*</span>
+                                </label>
                                 <input type="text" id="letter_number" name="letter_number"
                                     class="form-control @error('letter_number') is-invalid @enderror"
                                     value="{{ old('letter_number') }}" placeholder="Contoh: 001/BNPB/LOG/2026" required>
@@ -66,8 +84,9 @@
                             </div>
 
                             <div class="col-md-6">
-                                <label for="letter_date" class="form-label">Tanggal Surat <span
-                                        class="required-mark">*</span></label>
+                                <label for="letter_date" class="form-label">
+                                    Tanggal Surat <span class="required-mark">*</span>
+                                </label>
                                 <input type="date" id="letter_date" name="letter_date"
                                     class="form-control @error('letter_date') is-invalid @enderror"
                                     value="{{ old('letter_date') }}" required>
@@ -77,8 +96,9 @@
                             </div>
 
                             <div class="col-md-6">
-                                <label for="subject" class="form-label">Perihal <span
-                                        class="required-mark">*</span></label>
+                                <label for="subject" class="form-label">
+                                    Perihal <span class="required-mark">*</span>
+                                </label>
                                 <input type="text" id="subject" name="subject"
                                     class="form-control @error('subject') is-invalid @enderror" value="{{ old('subject') }}"
                                     placeholder="Masukkan perihal surat" required>
@@ -87,8 +107,70 @@
                                 @enderror
                             </div>
                         </div>
+
+                        {{-- Upload PDF Surat Asli --}}
+                        <div class="document-upload-section">
+                            <div class="document-heading">
+                                <div>
+                                    <label class="form-label mb-1">
+                                        PDF Surat Asli
+                                        <span class="optional-text">(Opsional)</span>
+                                    </label>
+                                    <small class="text-muted">
+                                        Format PDF, maksimal 10 MB.
+                                    </small>
+                                </div>
+
+                                <label for="surat_asli" class="document-add-button" title="Tambah PDF">
+                                    <i class="bi bi-plus-lg"></i>
+                                    <span>Tambah PDF</span>
+                                </label>
+
+                                <input type="file" id="surat_asli" name="surat_asli"
+                                    class="d-none @error('surat_asli') is-invalid @enderror" accept=".pdf,application/pdf">
+                            </div>
+
+                            @error('surat_asli')
+                                <div class="text-danger small mt-2">{{ $message }}</div>
+                            @enderror
+
+                            <div id="empty-document" class="document-empty mt-2">
+                                <i class="bi bi-file-earmark"></i>
+                                Belum ada PDF yang dipilih.
+                            </div>
+
+                            {{-- Pratinjau PDF sebelum disimpan --}}
+                            <div id="selected-document" class="document-item mt-2 d-none">
+                                <div class="document-file-icon">
+                                    <i class="bi bi-file-earmark-pdf"></i>
+                                </div>
+
+                                <div class="document-file-info">
+                                    <div class="document-name" id="selected-document-name"></div>
+                                    <small id="selected-document-size"></small>
+                                </div>
+
+                                <div class="document-actions">
+                                    <button type="button" id="preview-selected-document" class="document-action view"
+                                        title="Lihat PDF">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+
+                                    <button type="button" id="download-selected-document" class="document-action download"
+                                        title="Download PDF">
+                                        <i class="bi bi-download"></i>
+                                    </button>
+
+                                    <button type="button" id="clear-selected-document" class="document-action delete"
+                                        title="Batalkan pilihan">
+                                        <i class="bi bi-trash3"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
+                    {{-- Disposisi Awal --}}
                     <div class="form-section">
                         <div class="section-heading">
                             <div class="section-icon orange">
@@ -101,28 +183,47 @@
                             <span class="optional-label">Opsional</span>
                         </div>
 
-                        <div class="mb-3">
-                            <label for="instruction" class="form-label">
-                                Disposisi <span class="optional-text">(Opsional)</span>
-                            </label>
-                            <textarea id="instruction" name="instruction" class="form-control @error('instruction') is-invalid @enderror"
-                                rows="3" placeholder="Masukkan instruksi disposisi jika sudah tersedia">{{ old('instruction') }}</textarea>
-                            @error('instruction')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label for="instruction" class="form-label">
+                                    Disposisi <span class="optional-text">(Opsional)</span>
+                                </label>
+                                <textarea id="instruction" name="instruction" class="form-control @error('instruction') is-invalid @enderror"
+                                    rows="2" placeholder="Masukkan instruksi disposisi jika sudah tersedia">{{ old('instruction') }}</textarea>
+                                @error('instruction')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="target_units" class="form-label">
+                                    Unit Kerja <span class="optional-text">(Opsional)</span>
+                                </label>
+                                <input type="text" id="target_units" name="target_units"
+                                    class="form-control @error('target_units') is-invalid @enderror"
+                                    value="{{ old('target_units') }}" placeholder="Contoh: PLP, OJLP">
+                                @error('target_units')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="deadline_at" class="form-label">
+                                    Batas Penyelesaian
+                                    <span class="optional-text">(Opsional)</span>
+                                </label>
+                                <input type="date" id="deadline_at" name="deadline_at"
+                                    class="form-control @error('deadline_at') is-invalid @enderror"
+                                    value="{{ old('deadline_at') }}">
+                                @error('deadline_at')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
                         </div>
 
-                        <div>
-                            <label for="target_units" class="form-label">
-                                Unit Kerja <span class="optional-text">(Opsional)</span>
-                            </label>
-                            <input type="text" id="target_units" name="target_units"
-                                class="form-control @error('target_units') is-invalid @enderror"
-                                value="{{ old('target_units') }}" placeholder="Contoh: PLP, OJLP">
-                            @error('target_units')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
+                        <small class="text-muted d-block mt-2">
+                            Tentukan batas waktu penyelesaian disposisi surat. Kosongkan jika belum ditentukan.
+                        </small>
                     </div>
 
                     <div class="form-actions">
@@ -159,26 +260,26 @@
             display: flex;
             align-items: center;
             gap: 13px;
-            padding: 18px 22px;
+            padding: 15px 20px;
             border-bottom: 1px solid #edf0f4;
         }
 
         .letter-form-page .form-heading-icon,
         .letter-form-page .section-icon {
-            width: 38px;
-            height: 38px;
-            border-radius: 10px;
+            width: 36px;
+            height: 36px;
+            border-radius: 9px;
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
             background: #edf3fa;
             color: #193b63;
-            font-size: 17px;
+            font-size: 16px;
         }
 
         .letter-form-page .form-panel-header h5 {
-            margin: 0 0 4px;
+            margin: 0 0 3px;
             font-size: 14px;
             font-weight: 700;
             color: #20344d;
@@ -192,20 +293,20 @@
         }
 
         .letter-form-page .form-panel-body {
-            padding: 22px;
+            padding: 18px 20px;
         }
 
         .letter-form-page .system-info {
             display: flex;
-            gap: 12px;
-            padding: 14px 16px;
-            margin-bottom: 24px;
+            gap: 10px;
+            padding: 11px 14px;
+            margin-bottom: 20px;
             border: 1px solid #dce8f5;
             border-radius: 9px;
             background: #f3f7fc;
             color: #49627e;
             font-size: 11px;
-            line-height: 1.8;
+            line-height: 1.7;
         }
 
         .letter-form-page .system-info>i {
@@ -214,23 +315,33 @@
             margin-top: 2px;
         }
 
+        .letter-form-page .form-error-alert {
+            padding: 12px 14px;
+            border-radius: 9px;
+            font-size: 11px;
+        }
+
+        .letter-form-page .form-error-alert ul {
+            padding-left: 30px;
+        }
+
         .letter-form-page .form-section {
-            padding: 0 0 23px;
-            margin-bottom: 23px;
+            padding-bottom: 19px;
+            margin-bottom: 19px;
             border-bottom: 1px solid #edf0f4;
         }
 
         .letter-form-page .section-heading {
             display: flex;
             align-items: center;
-            gap: 11px;
-            margin-bottom: 18px;
+            gap: 10px;
+            margin-bottom: 15px;
         }
 
         .letter-form-page .section-icon {
-            width: 34px;
-            height: 34px;
-            font-size: 15px;
+            width: 32px;
+            height: 32px;
+            font-size: 14px;
         }
 
         .letter-form-page .section-icon.orange {
@@ -239,7 +350,7 @@
         }
 
         .letter-form-page .section-heading h6 {
-            margin: 0 0 4px;
+            margin: 0 0 3px;
             color: #263a52;
             font-size: 13px;
             font-weight: 700;
@@ -247,7 +358,7 @@
 
         .letter-form-page .optional-label {
             margin-left: auto;
-            padding: 5px 9px;
+            padding: 4px 8px;
             border-radius: 6px;
             background: #f2f4f7;
             color: #778394;
@@ -256,7 +367,7 @@
 
         .letter-form-page .form-label {
             display: block;
-            margin-bottom: 7px;
+            margin-bottom: 6px;
             color: #46566b;
             font-size: 11px;
             font-weight: 600;
@@ -272,17 +383,17 @@
         }
 
         .letter-form-page .form-control {
-            min-height: 41px;
-            padding: 9px 12px;
+            min-height: 37px;
+            padding: 8px 11px;
             border: 1px solid #dfe5ec;
-            border-radius: 8px;
+            border-radius: 7px;
             color: #34465b;
             font-size: 11px;
             box-shadow: none;
         }
 
         .letter-form-page textarea.form-control {
-            min-height: 95px;
+            min-height: 68px;
             resize: vertical;
         }
 
@@ -295,6 +406,146 @@
             color: #a5afbb;
         }
 
+        /* Area upload PDF mengikuti form edit */
+        .letter-form-page .document-upload-section {
+            margin-top: 18px;
+            max-width: 650px;
+        }
+
+        .letter-form-page .document-heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            max-width: 650px;
+        }
+
+        .letter-form-page .document-add-button {
+            min-width: 105px;
+            height: 34px;
+            padding: 0 12px;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            gap: 7px;
+            border: 1px solid #193b63;
+            border-radius: 7px;
+            background: #193b63;
+            color: #fff;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: .15s;
+            flex-shrink: 0;
+            margin: 0;
+        }
+
+        .letter-form-page .document-add-button i {
+            font-size: 13px;
+        }
+
+        .letter-form-page .document-add-button:hover {
+            background: #102e50;
+            border-color: #102e50;
+        }
+
+        .letter-form-page .document-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 65px;
+            padding: 9px 12px;
+            border: 1px solid #e2e8ef;
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        .letter-form-page .document-file-icon {
+            width: 29px;
+            height: 29px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            color: #e34d59;
+            font-size: 21px;
+        }
+
+        .letter-form-page .document-file-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .letter-form-page .document-name {
+            color: #34465b;
+            font-size: 11px;
+            font-weight: 600;
+            overflow-wrap: anywhere;
+        }
+
+        .letter-form-page .document-file-info small {
+            display: block;
+            margin-top: 3px;
+            color: #8491a1;
+            font-size: 10px;
+        }
+
+        .letter-form-page .document-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .letter-form-page .document-action {
+            width: 29px;
+            height: 29px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #dce4ed;
+            border-radius: 6px;
+            background: #fff;
+            color: #52677f;
+            font-size: 12px;
+            text-decoration: none;
+            cursor: pointer;
+            transition: .15s;
+        }
+
+        .letter-form-page .document-action.view:hover {
+            background: #edf4fc;
+            border-color: #b9cde3;
+            color: #245b91;
+        }
+
+        .letter-form-page .document-action.download:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+            color: #334e68;
+        }
+
+        .letter-form-page .document-action.delete {
+            border-color: #f2c5c8;
+            color: #dc3545;
+        }
+
+        .letter-form-page .document-action.delete:hover {
+            background: #fff0f1;
+            border-color: #dc3545;
+        }
+
+        .letter-form-page .document-empty {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 10px 12px;
+            border: 1px dashed #dce3eb;
+            border-radius: 8px;
+            color: #929dab;
+            font-size: 11px;
+        }
+
         .letter-form-page .form-actions {
             display: flex;
             justify-content: space-between;
@@ -303,9 +554,9 @@
         }
 
         .letter-form-page .btn {
-            min-height: 41px;
-            padding: 9px 16px;
-            border-radius: 8px;
+            min-height: 37px;
+            padding: 8px 14px;
+            border-radius: 7px;
             font-size: 11px;
             font-weight: 600;
             display: inline-flex;
@@ -340,11 +591,15 @@
 
             .letter-form-page .form-panel-header,
             .letter-form-page .form-panel-body {
-                padding: 16px;
+                padding: 14px;
             }
 
-            .letter-form-page .system-info {
-                padding: 12px;
+            .letter-form-page .document-item {
+                flex-wrap: wrap;
+            }
+
+            .letter-form-page .document-actions {
+                margin-left: auto;
             }
 
             .letter-form-page .form-actions {
@@ -357,4 +612,92 @@
             }
         }
     </style>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('surat_asli');
+            const selectedDocument = document.getElementById('selected-document');
+            const emptyDocument = document.getElementById('empty-document');
+            const selectedName = document.getElementById('selected-document-name');
+            const selectedSize = document.getElementById('selected-document-size');
+            const previewButton = document.getElementById('preview-selected-document');
+            const downloadButton = document.getElementById('download-selected-document');
+            const clearButton = document.getElementById('clear-selected-document');
+
+            let selectedFileUrl = null;
+
+            if (!fileInput) return;
+
+            function clearPreviewUrl() {
+                if (selectedFileUrl) {
+                    URL.revokeObjectURL(selectedFileUrl);
+                    selectedFileUrl = null;
+                }
+            }
+
+            function resetSelectedFile() {
+                fileInput.value = '';
+                clearPreviewUrl();
+                selectedDocument.classList.add('d-none');
+                emptyDocument.classList.remove('d-none');
+            }
+
+            fileInput.addEventListener('change', function() {
+                const file = this.files && this.files.length ? this.files[0] : null;
+
+                if (!file) {
+                    resetSelectedFile();
+                    return;
+                }
+
+                const isPdf = file.type === 'application/pdf' ||
+                    file.name.toLowerCase().endsWith('.pdf');
+
+                if (!isPdf) {
+                    alert('File harus berformat PDF.');
+                    resetSelectedFile();
+                    return;
+                }
+
+                if (file.size > 10 * 1024 * 1024) {
+                    alert('Ukuran PDF maksimal 10 MB.');
+                    resetSelectedFile();
+                    return;
+                }
+
+                clearPreviewUrl();
+                selectedFileUrl = URL.createObjectURL(file);
+
+                selectedName.textContent = file.name;
+                selectedSize.textContent =
+                    (file.size / 1024).toFixed(2) + ' KB · File baru, belum disimpan';
+
+                selectedDocument.classList.remove('d-none');
+                emptyDocument.classList.add('d-none');
+            });
+
+            previewButton.addEventListener('click', function() {
+                if (selectedFileUrl) {
+                    window.open(selectedFileUrl, '_blank');
+                }
+            });
+
+            downloadButton.addEventListener('click', function() {
+                const file = fileInput.files && fileInput.files[0];
+
+                if (!file || !selectedFileUrl) return;
+
+                const link = document.createElement('a');
+                link.href = selectedFileUrl;
+                link.download = file.name;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+            });
+
+            clearButton.addEventListener('click', resetSelectedFile);
+
+            window.addEventListener('beforeunload', clearPreviewUrl);
+        });
+    </script>
 @endsection

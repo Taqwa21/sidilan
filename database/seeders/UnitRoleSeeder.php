@@ -9,25 +9,34 @@ class UnitRoleSeeder extends Seeder
 {
     public function run(): void
     {
+        // Data Unit Kerja
         $units = [
             [
-                'name' => 'BNPB Logistik',
+                'name' => 'Deputi Bidang Logistik dan Peralatan',
                 'code' => 'LOGISTIK',
-                'description' => 'Unit BNPB Logistik',
+                'description' => 'Unit Kerja Deputi Bidang Logistik dan Peralatan',
             ],
             [
-                'name' => 'BNPB Pusat',
+                'name' => 'Direktur',
                 'code' => 'PUSAT',
-                'description' => 'Unit BNPB Pusat',
+                'description' => 'Unit Kerja Direktur',
             ],
         ];
 
         foreach ($units as $unit) {
-            $exists = DB::table('units')
+            $existingUnit = DB::table('units')
                 ->where('code', $unit['code'])
-                ->exists();
+                ->first();
 
-            if (!$exists) {
+            if ($existingUnit) {
+                DB::table('units')
+                    ->where('id', $existingUnit->id)
+                    ->update([
+                        'name' => $unit['name'],
+                        'description' => $unit['description'],
+                        'updated_at' => now(),
+                    ]);
+            } else {
                 DB::table('units')->insert([
                     ...$unit,
                     'created_at' => now(),
@@ -36,30 +45,39 @@ class UnitRoleSeeder extends Seeder
             }
         }
 
+        // Data Role
         $roles = [
             [
                 'name' => 'Administrator',
                 'slug' => 'admin',
-                'description' => 'Mengelola seluruh sistem',
+                'description' => 'Mengelola seluruh sistem SIDILAN',
             ],
             [
-                'name' => 'Logistik',
+                'name' => 'TU Deputi Logpal',
                 'slug' => 'logistik',
-                'description' => 'Petugas BNPB Logistik',
+                'description' => 'Mengelola surat dan tindak lanjut Deputi Bidang Logistik dan Peralatan',
             ],
             [
-                'name' => 'Pusat',
+                'name' => 'Sekretaris Direktorat Logpal',
                 'slug' => 'pusat',
-                'description' => 'Petugas BNPB Pusat',
+                'description' => 'Mengelola surat dan tindak lanjut Direktur',
             ],
         ];
 
         foreach ($roles as $role) {
-            $exists = DB::table('roles')
+            $existingRole = DB::table('roles')
                 ->where('slug', $role['slug'])
-                ->exists();
+                ->first();
 
-            if (!$exists) {
+            if ($existingRole) {
+                DB::table('roles')
+                    ->where('id', $existingRole->id)
+                    ->update([
+                        'name' => $role['name'],
+                        'description' => $role['description'],
+                        'updated_at' => now(),
+                    ]);
+            } else {
                 DB::table('roles')->insert([
                     ...$role,
                     'created_at' => now(),
@@ -68,6 +86,6 @@ class UnitRoleSeeder extends Seeder
             }
         }
 
-        $this->command->info('Pemeriksaan unit dan role selesai.');
+        $this->command->info('Data Unit Kerja dan Role SIDILAN berhasil diperiksa.');
     }
 }
