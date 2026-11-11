@@ -21,12 +21,8 @@
         $isAdmin = auth()->user()->role?->slug === 'admin';
 
         $canUploadReceipt = !$isAdmin && $isReceiver && !$isFinished && $currentStatus !== 'draft';
-<<<<<<< HEAD
-
         // Hanya unit penerima yang dapat memperbarui posisi surat.
         $canUpdatePosition = !$isAdmin && $isReceiver && !$isFinished;
-=======
-        $canUpdatePosition = !$isAdmin && ($isSender || $isReceiver) && !$isFinished;
 
         $latestDisposition = $letter->dispositions->sortByDesc('created_at')->first();
         $latestFollowUp = $letter->followUps->sortByDesc('created_at')->first();
@@ -60,7 +56,6 @@
         }
 
         $formatDate = fn($date, $format = 'd M Y, H:i') => $date?->format($format) ?? '-';
->>>>>>> 5ec65f1 (docs: update README and improve document preview UI)
     @endphp
 
     <style>
@@ -812,17 +807,6 @@
             </div>
         </div>
 
-<<<<<<< HEAD
-        {{-- PERBARUI POSISI SURAT: KHUSUS UNIT PENERIMA --}}
-        @if ($canUpdatePosition)
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-body p-4">
-                    <h5 class="mb-2">Perbarui Posisi Surat</h5>
-                    <p class="text-muted">
-                        Perbarui lokasi atau tahapan fisik surat sesuai kondisi terakhir.
-                        Perubahan posisi tidak mengubah status utama surat.
-                    </p>
-=======
         {{-- PEMBARUAN SURAT --}}
         <div class="card mb-4">
             <div class="card-body">
@@ -835,7 +819,6 @@
                         <small class="text-muted">Seluruh tindakan dan pembaruan terkait surat ini.</small>
                     </div>
                 </div>
->>>>>>> 5ec65f1 (docs: update README and improve document preview UI)
 
                 <div id="accordionPembaruan">
 
@@ -1270,144 +1253,9 @@
                                 !$isFinished && ($isAdmin || (int) $attachment->uploaded_by === (int) auth()->id());
                         @endphp
 
-<<<<<<< HEAD
-        {{-- KONFIRMASI PENERIMAAN: KHUSUS UNIT PENERIMA --}}
-        @if ($isReceiver && $currentStatus !== 'draft')
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-white py-3">
-                    <h5 class="mb-0">
-                        <i class="bi bi-clipboard-check me-2"></i>
-                        Konfirmasi Penerimaan
-                    </h5>
-                </div>
-
-                <div class="card-body p-4">
-
-                    <p class="text-muted">
-                        Konfirmasikan penerimaan surat dan unggah bukti penerimaan dalam satu bagian.
-                    </p>
-
-                    {{-- FORM KONFIRMASI --}}
-                    @if ($currentStatus === 'menunggu_konfirmasi')
-                        <div class="border rounded p-3 mb-4">
-                            <h6 class="mb-2">Konfirmasi Surat Diterima</h6>
-
-                            <p class="text-muted small">
-                                Konfirmasikan apabila surat sudah benar-benar diterima oleh unit Anda.
-                            </p>
-
-                            <form action="{{ route('letters.receive', $letter->id) }}" method="POST" data-confirm
-                                data-confirm-title="Konfirmasi Penerimaan?"
-                                data-confirm-message="Pastikan surat sudah benar-benar diterima oleh unit Anda."
-                                data-confirm-button="Ya, Diterima" data-confirm-type="success">
-                                @csrf
-
-                                <div class="mb-3">
-                                    <label class="form-label">
-                                        Catatan Penerimaan (Opsional)
-                                    </label>
-
-                                    <textarea name="received_note" class="form-control" rows="3"
-                                        placeholder="Tambahkan catatan penerimaan jika diperlukan">{{ old('received_note') }}</textarea>
-
-                                    @error('received_note')
-                                        <div class="text-danger small">{{ $message }}</div>
-                                    @enderror
-                                </div>
-
-                                <button type="submit" class="btn btn-success">
-                                    <i class="bi bi-check-circle me-1"></i>
-                                    Konfirmasi Diterima
-                                </button>
-                            </form>
-                        </div>
-                    @elseif ($letter->received_at)
-                        <div class="alert alert-success mb-4">
-                            <i class="bi bi-check-circle me-1"></i>
-                            Surat telah diterima oleh
-                            {{ $letter->receiver->name ?? 'petugas penerima' }}
-                            pada
-                            {{ $letter->received_at->format('d F Y, H:i') }}.
-                        </div>
-                    @endif
-
-                    {{-- FORM UPLOAD BUKTI PENERIMAAN: KHUSUS PENERIMA --}}
-                    @if ($canUploadReceipt)
-                        <div class="border rounded p-3">
-                            <h6 class="mb-2">Upload Bukti Penerimaan</h6>
-
-                            <p class="text-muted small">
-                                Unggah tanda terima, surat yang sudah distempel,
-                                atau dokumen pendukung penerimaan lainnya.
-                            </p>
-
-                            <form action="{{ route('letters.attachments.store', $letter->id) }}" method="POST"
-                                enctype="multipart/form-data">
-                                @csrf
-
-                                <input type="hidden" name="document_type" value="bukti_penerimaan">
-
-                                <div class="mb-3">
-                                    <input type="file" name="files[]" class="form-control"
-                                        accept=".pdf,application/pdf" multiple required>
-                                    <small class="text-muted">
-                                        Format PDF saja. Maksimal 10 file, masing-masing maksimal 10 MB.
-                                    </small>
-                                </div>
-
-                                <button type="submit" class="btn btn-outline-success">
-                                    <i class="bi bi-upload me-1"></i>
-                                    Upload Bukti Penerimaan
-                                </button>
-                            </form>
-                        </div>
-                    @endif
-
-                </div>
-            </div>
-        @endif
-
-        {{-- DAFTAR BUKTI PENERIMAAN: DAPAT DILIHAT PENGIRIM DAN PENERIMA --}}
-        @if ($currentStatus !== 'draft')
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-white py-3">
-                    <h5 class="mb-0">
-                        <i class="bi bi-file-earmark-check me-2"></i>
-                        Dokumen Bukti Penerimaan
-                    </h5>
-                </div>
-
-                <div class="card-body p-4">
-
-                    <p class="text-muted small mb-3">
-                        Dokumen bukti penerimaan yang telah diunggah oleh unit penerima.
-                        Dokumen ini dapat dilihat dan diunduh oleh unit pengirim maupun penerima.
-                    </p>
-
-                    @php
-                        $receiptAttachments = $letter->attachments
-                            ->where('document_type', 'bukti_penerimaan')
-                            ->sortByDesc('created_at');
-                    @endphp
-
-                    @forelse ($receiptAttachments as $attachment)
-                        <div
-                            class="d-flex align-items-center justify-content-between flex-wrap gap-3 border rounded p-3 mb-2">
-
-                            <div class="d-flex align-items-center gap-3">
-                                <div class="text-danger fs-3">
-                                    <i class="bi bi-file-earmark-pdf"></i>
-                                </div>
-
-                                <div>
-                                    <div class="fw-semibold">
-                                        {{ $attachment->original_name }}
-                                    </div>
-=======
                         <div class="document-item">
                             <div class="d-flex align-items-center gap-3 flex-grow-1">
                                 <i class="bi bi-file-earmark-pdf document-icon"></i>
->>>>>>> 5ec65f1 (docs: update README and improve document preview UI)
 
                                 <div class="min-w-0">
                                     <div class="document-name">{{ $attachment->original_name }}</div>
@@ -1551,14 +1399,6 @@
                             </div>
                         </div>
                     @empty
-<<<<<<< HEAD
-                        <div class="text-center py-3 text-muted">
-                            <i class="bi bi-file-earmark-x fs-2"></i>
-                            <p class="small mt-2 mb-0">
-                                Belum ada bukti penerimaan yang diunggah.
-                            </p>
-                        </div>
-=======
                         <p class="text-muted small mb-0">Belum ada bukti penerimaan yang diunggah.</p>
                     @endforelse
                 </div>
@@ -1618,7 +1458,6 @@
                         </div>
                     @empty
                         <p class="text-muted small mb-0">Belum ada bukti tindak lanjut yang diunggah.</p>
->>>>>>> 5ec65f1 (docs: update README and improve document preview UI)
                     @endforelse
 
                     {{-- UPLOAD BUKTI PER AKTIVITAS --}}
