@@ -12,10 +12,14 @@ class UnitController extends Controller
     {
         $units = Unit::withCount([
             'sentLetters',
-            'receivedLetters'
-        ])->orderBy('name')->get();
+            'receivedLetters',
+            'users',
+            'workUnits',
+        ])
+            ->orderBy('name')
+            ->get();
 
-        return view('units.index', compact('units'));
+        return view('admin.units.index', compact('units'));
     }
 
     public function store(Request $request)
@@ -29,7 +33,7 @@ class UnitController extends Controller
         Unit::create($validated);
 
         return redirect()->route('admin.units.index')
-            ->with('success', 'Unit kerja berhasil ditambahkan.');
+            ->with('success', 'Instansi berhasil ditambahkan.');
     }
 
     public function update(Request $request, Unit $unit)
@@ -48,22 +52,38 @@ class UnitController extends Controller
         $unit->update($validated);
 
         return redirect()->route('admin.units.index')
-            ->with('success', 'Unit kerja berhasil diperbarui.');
+            ->with('success', 'Data instansi berhasil diperbarui.');
     }
 
     public function destroy(Unit $unit)
     {
-        if ($unit->sentLetters()->exists() || $unit->receivedLetters()->exists()) {
-            return back()->with('error', 'Unit tidak dapat dihapus karena masih terhubung dengan data surat.');
+        if (
+            $unit->sentLetters()->exists() ||
+            $unit->receivedLetters()->exists()
+        ) {
+            return back()->with(
+                'error',
+                'Instansi tidak dapat dihapus karena masih terhubung dengan data surat.'
+            );
         }
 
         if ($unit->users()->exists()) {
-            return back()->with('error', 'Unit tidak dapat dihapus karena masih digunakan oleh pengguna.');
+            return back()->with(
+                'error',
+                'Instansi tidak dapat dihapus karena masih digunakan oleh pengguna.'
+            );
+        }
+
+        if ($unit->workUnits()->exists()) {
+            return back()->with(
+                'error',
+                'Instansi tidak dapat dihapus karena masih memiliki unit kerja.'
+            );
         }
 
         $unit->delete();
 
         return redirect()->route('admin.units.index')
-            ->with('success', 'Unit kerja berhasil dihapus.');
+            ->with('success', 'Instansi berhasil dihapus.');
     }
 }

@@ -7,6 +7,15 @@
 @section('content')
     @php
         $suratAsli = $letter->attachments->where('document_type', 'surat_asli')->sortByDesc('id')->first();
+
+        $selectedWorkUnitIds = old(
+            'work_unit_ids',
+            $initialDisposition
+                ? $initialDisposition->workUnits->pluck('id')->map(fn($id) => (int) $id)->toArray()
+                : [],
+        );
+
+        $selectedWorkUnitIds = array_map('intval', $selectedWorkUnitIds);
     @endphp
 
     <div class="container-fluid py-2 letter-form-page">
@@ -41,12 +50,14 @@
                     <i class="bi bi-info-circle-fill"></i>
                     <div>
                         <div>Unit pengirim mengikuti unit akun yang membuat surat, sedangkan unit penerima ditentukan
-                            otomatis oleh sistem.</div>
-                        <div>Dokumen PDF surat asli dapat dilihat, diunduh, dihapus, atau diganti dengan file baru.</div>
+                            secara otomatis oleh sistem.</div>
+                        <div>Dokumen PDF surat asli dapat dilihat, diunduh, dihapus, atau diganti dengan dokumen baru.</div>
+                        <div>Disposisi awal, unit kerja tujuan, dan batas penyelesaian dapat diperbarui selama surat
+                            masih berstatus Draft.</div>
                     </div>
                 </div>
 
-                {{-- Form hapus dokumen dipisahkan agar tidak terjadi nested form --}}
+                {{-- Form penghapusan dokumen dipisahkan untuk menghindari nested form --}}
                 @if ($suratAsli)
                     <form id="delete-surat-asli-form" action="{{ route('letters.attachments.destroy', $suratAsli->id) }}"
                         method="POST">
@@ -56,10 +67,10 @@
                 @endif
 
                 <form action="{{ route('letters.update', $letter->id) }}" method="POST" enctype="multipart/form-data">
-
                     @csrf
                     @method('PUT')
 
+                    {{-- Informasi Surat --}}
                     <div class="form-section">
                         <div class="section-heading">
                             <div class="section-icon">
@@ -78,7 +89,8 @@
                                 </label>
                                 <input type="text" id="origin" name="origin"
                                     class="form-control @error('origin') is-invalid @enderror"
-                                    value="{{ old('origin', $letter->origin) }}" required>
+                                    value="{{ old('origin', $letter->origin) }}" placeholder="Masukkan nama pengirim surat"
+                                    required>
                                 @error('origin')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
@@ -90,7 +102,8 @@
                                 </label>
                                 <input type="text" id="letter_number" name="letter_number"
                                     class="form-control @error('letter_number') is-invalid @enderror"
-                                    value="{{ old('letter_number', $letter->letter_number) }}" required>
+                                    value="{{ old('letter_number', $letter->letter_number) }}"
+                                    placeholder="Masukkan nomor surat" required>
                                 @error('letter_number')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
@@ -115,7 +128,8 @@
                                 </label>
                                 <input type="text" id="subject" name="subject"
                                     class="form-control @error('subject') is-invalid @enderror"
-                                    value="{{ old('subject', $letter->subject) }}" required>
+                                    value="{{ old('subject', $letter->subject) }}" placeholder="Masukkan perihal surat"
+                                    required>
                                 @error('subject')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
@@ -172,12 +186,13 @@
                                             </a>
 
                                             <a href="{{ route('letters.attachments.download', $suratAsli->id) }}"
-                                                class="document-action download" title="Download PDF">
+                                                class="document-action download" title="Unduh PDF">
                                                 <i class="bi bi-download"></i>
                                             </a>
 
                                             <button type="submit" form="delete-surat-asli-form"
-                                                class="document-action delete" title="Hapus PDF">
+                                                class="document-action delete" title="Hapus PDF"
+                                                onclick="return confirm('Apakah Anda yakin ingin menghapus PDF surat asli ini?')">
                                                 <i class="bi bi-trash3"></i>
                                             </button>
                                         </div>
@@ -190,7 +205,7 @@
                                 @endif
                             </div>
 
-                            {{-- Pratinjau file yang baru dipilih --}}
+                            {{-- Pratinjau dokumen baru --}}
                             <div id="selected-document" class="document-item mt-2 d-none">
                                 <div class="document-file-icon">
                                     <i class="bi bi-file-earmark-pdf"></i>
@@ -208,7 +223,7 @@
                                     </button>
 
                                     <button type="button" id="download-selected-document"
-                                        class="document-action download" title="Download PDF">
+                                        class="document-action download" title="Unduh PDF">
                                         <i class="bi bi-download"></i>
                                     </button>
 
@@ -229,7 +244,7 @@
                             </div>
                             <div>
                                 <h6>Disposisi Awal</h6>
-                                <p>Perbarui disposisi selama surat masih berstatus Draft.</p>
+                                <p>Perbarui instruksi dan unit kerja tujuan disposisi.</p>
                             </div>
                             <span class="optional-label">Opsional</span>
                         </div>
@@ -237,7 +252,8 @@
                         <div class="row g-3">
                             <div class="col-12">
                                 <label for="instruction" class="form-label">
-                                    Disposisi <span class="optional-text">(Opsional)</span>
+                                    Instruksi Disposisi
+                                    <span class="optional-text">(Opsional)</span>
                                 </label>
                                 <textarea id="instruction" name="instruction" class="form-control @error('instruction') is-invalid @enderror"
                                     rows="2" placeholder="Masukkan instruksi disposisi jika sudah tersedia">{{ old('instruction', $initialDisposition?->instruction) }}</textarea>
@@ -246,17 +262,48 @@
                                 @enderror
                             </div>
 
-                            <div class="col-md-6">
-                                <label for="target_units" class="form-label">
-                                    Unit Kerja <span class="optional-text">(Opsional)</span>
+                            {{-- Pilihan Unit Kerja --}}
+                            <div class="col-12">
+                                <label class="form-label">
+                                    Unit Kerja Tujuan
+                                    <span class="optional-text">(Opsional)</span>
                                 </label>
-                                <input type="text" id="target_units" name="target_units"
-                                    class="form-control @error('target_units') is-invalid @enderror"
-                                    value="{{ old('target_units', $initialDisposition?->target_units) }}"
-                                    placeholder="Contoh: PLP, OJLP">
-                                @error('target_units')
-                                    <div class="invalid-feedback">{{ $message }}</div>
+
+                                <div class="work-unit-selection">
+                                    @forelse ($workUnits as $workUnit)
+                                        <label class="work-unit-option" for="work_unit_{{ $workUnit->id }}">
+                                            <input type="checkbox" id="work_unit_{{ $workUnit->id }}"
+                                                name="work_unit_ids[]" value="{{ $workUnit->id }}"
+                                                {{ in_array((int) $workUnit->id, $selectedWorkUnitIds, true) ? 'checked' : '' }}>
+
+                                            <span class="work-unit-checkbox">
+                                                <i class="bi bi-check2"></i>
+                                            </span>
+
+                                            <span class="work-unit-name">
+                                                {{ $workUnit->name }}
+                                            </span>
+                                        </label>
+                                    @empty
+                                        <div class="work-unit-empty">
+                                            <i class="bi bi-info-circle"></i>
+                                            Belum terdapat unit kerja yang terdaftar pada instansi penerima.
+                                        </div>
+                                    @endforelse
+                                </div>
+
+                                @error('work_unit_ids')
+                                    <div class="text-danger small mt-2">{{ $message }}</div>
                                 @enderror
+
+                                @error('work_unit_ids.*')
+                                    <div class="text-danger small mt-2">{{ $message }}</div>
+                                @enderror
+
+                                <small class="text-muted d-block mt-2">
+                                    Pilih unit kerja yang menjadi tujuan disposisi. Unit kerja dapat dipilih
+                                    satu atau lebih sesuai kebutuhan.
+                                </small>
                             </div>
 
                             <div class="col-md-6">
@@ -279,7 +326,8 @@
                         </div>
 
                         <small class="text-muted d-block mt-2">
-                            Tentukan batas waktu penyelesaian disposisi surat. Kosongkan jika belum ditentukan.
+                            Tentukan batas waktu penyelesaian disposisi surat. Kosongkan apabila batas waktu
+                            belum ditentukan.
                         </small>
                     </div>
 
@@ -463,6 +511,86 @@
             color: #a5afbb;
         }
 
+        /* Pilihan unit kerja */
+        .letter-form-page .work-unit-selection {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .letter-form-page .work-unit-option {
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            min-width: 120px;
+            padding: 10px 14px;
+            border: 1px solid #dfe5ec;
+            border-radius: 8px;
+            background: #fff;
+            color: #46566b;
+            cursor: pointer;
+            transition: .15s;
+            margin: 0;
+        }
+
+        .letter-form-page .work-unit-option:hover {
+            border-color: #9bb2cc;
+            background: #f7f9fc;
+        }
+
+        .letter-form-page .work-unit-option input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .letter-form-page .work-unit-checkbox {
+            width: 17px;
+            height: 17px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            background: #fff;
+            color: transparent;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+
+        .letter-form-page .work-unit-name {
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .letter-form-page .work-unit-option:has(input:checked) {
+            border-color: #7898bb;
+            background: #f0f5fb;
+            color: #193b63;
+        }
+
+        .letter-form-page .work-unit-option input:checked+.work-unit-checkbox {
+            border-color: #193b63;
+            background: #193b63;
+            color: #fff;
+        }
+
+        .letter-form-page .work-unit-option:has(input:focus-visible) {
+            outline: 3px solid rgba(47, 91, 137, .15);
+        }
+
+        .letter-form-page .work-unit-empty {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 11px 13px;
+            border: 1px dashed #dce3eb;
+            border-radius: 8px;
+            color: #8491a1;
+            font-size: 11px;
+        }
+
+        /* Area upload PDF */
         .letter-form-page .document-upload-section {
             margin-top: 18px;
             max-width: 650px;
@@ -712,7 +840,7 @@
                     file.name.toLowerCase().endsWith('.pdf');
 
                 if (!isPdf) {
-                    alert('File harus berformat PDF.');
+                    alert('Dokumen harus berformat PDF.');
                     resetSelectedFile();
                     return;
                 }
@@ -724,12 +852,11 @@
                 }
 
                 clearPreviewUrl();
-
                 selectedFileUrl = URL.createObjectURL(file);
 
                 selectedName.textContent = file.name;
                 selectedSize.textContent =
-                    (file.size / 1024).toFixed(2) + ' KB · File baru, belum disimpan';
+                    (file.size / 1024).toFixed(2) + ' KB · Dokumen baru, belum disimpan';
 
                 selectedDocument.classList.remove('d-none');
 

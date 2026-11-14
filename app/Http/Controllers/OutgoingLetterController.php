@@ -8,79 +8,95 @@ use Illuminate\Support\Facades\Auth;
 
 class OutgoingLetterController extends Controller
 {
+    /**
+     * Query dasar surat keluar.
+     */
     private function visibleLetters()
     {
         $user = Auth::user();
 
+        $query = Letter::query()
+            ->whereNotNull('sender_unit_id');
+
+        // Admin dapat melihat seluruh surat keluar.
         if ($user->role?->slug === 'admin') {
-            return Letter::query();
+            return $query;
         }
 
+        // Akun non-admin hanya melihat surat keluar
+        // dari instansi tempat akun tersebut berada.
         if (!$user->unit_id) {
-            return Letter::whereRaw('1 = 0');
+            return $query->whereRaw('1 = 0');
         }
 
-        return Letter::where(function ($query) use ($user) {
-            $query->where('sender_unit_id', $user->unit_id)
-                ->orWhere(function ($receiverQuery) use ($user) {
-                    $receiverQuery->where('receiver_unit_id', $user->unit_id)
-                        ->where('status', '!=', 'draft');
-                });
-        });
+        $query->where('sender_unit_id', $user->unit_id);
+
+        // Jika akun memiliki unit kerja, surat juga harus
+        // ditugaskan kepada unit kerja tersebut melalui disposisi.
+        if ($user->work_unit_id) {
+            $query->whereHas('dispositions.workUnits', function ($workUnitQuery) use ($user) {
+                $workUnitQuery->where('work_units.id', $user->work_unit_id);
+            });
+        }
+
+        return $query;
     }
 
-    /** Menampilkan daftar surat keluar berdasarkan unit pengirim. */
+    /**
+     * Menampilkan daftar surat keluar.
+     */
     public function index(Request $request)
     {
-        $user = Auth::user();
         $query = $this->visibleLetters();
 
-        // Surat keluar hanya surat yang dikirim oleh unit pengguna.
-        if ($user->role?->slug !== 'admin') {
-            $query->where('sender_unit_id', $user->unit_id);
-        } else {
-            $query->whereNotNull('sender_unit_id');
-        }
+        $search = trim($request->input('search', ''));
+        $status = $request->input('status', '');
+        $dateFrom = $request->input('date_from', '');
+        $dateTo = $request->input('date_to', '');
 
-        $search = $request->input('search');
-        $status = $request->input('status');
-        $dateFrom = $request->input('date_from');
-        $dateTo = $request->input('date_to');
-
-        $letters = $query->with([
-            'creator',
-            'senderUnit',
-            'receiverUnit',
-            'classification',
-        ])
-            ->when($search, function ($query, $search) {
+        $letters = $query
+            ->with([
+                'creator',
+                'senderUnit',
+                'receiverUnit',
+                'classification',
+                'dispositions.workUnits',
+                'followUps.attachments',
+                'attachments',
+            ])
+            ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('letter_number', 'like', "%{$search}%")
                         ->orWhere('subject', 'like', "%{$search}%")
-                        ->orWhere('origin', 'like', "%{$search}%");
+                        ->orWhere('origin', 'like', "%{$search}%")
+                        ->orWhereHas('receiverUnit', function ($unitQuery) use ($search) {
+                            $unitQuery->where('name', 'like', "%{$search}%");
+                        });
                 });
             })
-            ->when($status, fn($query) => $query->where('status', $status))
-            ->when($dateFrom, fn($query) => $query->whereDate('letter_date', '>=', $dateFrom))
-            ->when($dateTo, fn($query) => $query->whereDate('letter_date', '<=', $dateTo))
+            ->when($status !== '', function ($query) use ($status) {
+                $query->where('status', $status);
+            })
+            ->when($dateFrom !== '', function ($query) use ($dateFrom) {
+                $query->whereDate('letter_date', '>=', $dateFrom);
+            })
+            ->when($dateTo !== '', function ($query) use ($dateTo) {
+                $query->whereDate('letter_date', '<=', $dateTo);
+            })
             ->orderByDesc('letter_date')
             ->orderByDesc('id')
             ->paginate(10)
             ->withQueryString();
 
-        $pageTitle = 'Surat Keluar';
-        $routeName = 'letters.outgoing';
-        $direction = 'outgoing';
-
-        return view('letters.index', compact(
-            'letters',
-            'search',
-            'status',
-            'dateFrom',
-            'dateTo',
-            'pageTitle',
-            'routeName',
-            'direction'
-        ));
+        return view('letters.outgoing.index', [
+            'letters' => $letters,
+            'search' => $search,
+            'status' => $status,
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
+            'pageTitle' => 'Surat Keluar',
+            'routeName' => 'letters.outgoing',
+            'direction' => 'outgoing',
+        ]);
     }
 }

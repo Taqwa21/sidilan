@@ -48,8 +48,6 @@
             text-decoration: none;
         }
 
-        /* SIDEBAR */
-
         .sidebar {
             position: fixed;
             inset: 0 auto 0 0;
@@ -215,8 +213,6 @@
             color: #fff;
         }
 
-        /* MAIN CONTENT */
-
         .main-content {
             min-height: 100vh;
             margin-left: var(--sidilan-sidebar-width);
@@ -313,8 +309,6 @@
             display: none;
         }
 
-        /* MODE TABEL */
-
         .table-mode-switch {
             display: flex;
             align-items: center;
@@ -356,8 +350,6 @@
         .table-mode-btn i {
             font-size: 13px;
         }
-
-        /* KOMPONEN GLOBAL */
 
         .card {
             border: 1px solid var(--sidilan-border);
@@ -429,8 +421,6 @@
             font-size: 13px;
         }
 
-        /* TABEL COMPACT */
-
         .table-responsive {
             overflow-x: auto;
             overflow-y: visible;
@@ -496,8 +486,6 @@
             cursor: help;
         }
 
-        /* TABEL FULL */
-
         body.table-mode-full .table-responsive {
             width: 100%;
             overflow-x: auto;
@@ -556,8 +544,6 @@
             cursor: auto;
         }
 
-        /* TOOLTIP */
-
         .sidilan-tooltip {
             position: fixed;
             z-index: 99999;
@@ -612,8 +598,6 @@
             overflow-wrap: anywhere;
             white-space: normal;
         }
-
-        /* MODAL KONFIRMASI */
 
         .sidilan-confirm-overlay {
             position: fixed;
@@ -728,8 +712,6 @@
             }
         }
 
-        /* FOOTER */
-
         .sidilan-footer {
             margin-top: 30px;
             padding: 18px 5px 5px;
@@ -738,8 +720,6 @@
             font-size: 11px;
             text-align: center;
         }
-
-        /* RESPONSIVE */
 
         @media (max-width: 1199px) {
             .main-content {
@@ -945,7 +925,13 @@
             <a href="{{ route('admin.units.index') }}"
                 class="nav-link {{ request()->routeIs('admin.units.*') ? 'active' : '' }}">
                 <i class="bi bi-building"></i>
-                <span class="nav-text">Unit Kerja</span>
+                <span class="nav-text">Manajemen Instansi</span>
+            </a>
+
+            <a href="{{ route('admin.work-units.index') }}"
+                class="nav-link {{ request()->routeIs('admin.work-units.*') ? 'active' : '' }}">
+                <i class="bi bi-diagram-3"></i>
+                <span class="nav-text">Manajemen Unit Kerja</span>
             </a>
         @endif
 
@@ -1025,8 +1011,6 @@
 
     </main>
 
-    {{-- MODAL KONFIRMASI GLOBAL --}}
-
     <div id="sidilanConfirmModal" class="sidilan-confirm-overlay" hidden role="dialog" aria-modal="true"
         aria-labelledby="sidilanConfirmTitle" aria-describedby="sidilanConfirmMessage">
 
@@ -1059,8 +1043,6 @@
         </div>
     </div>
 
-    {{-- TOOLTIP CUSTOM SIDILAN --}}
-
     <div id="sidilanTooltip" class="sidilan-tooltip" role="tooltip">
         <div class="sidilan-tooltip-label">Detail Informasi</div>
         <div id="sidilanTooltipText" class="sidilan-tooltip-text"></div>
@@ -1069,8 +1051,6 @@
     @stack('scripts')
 
     <script>
-        /* MODE TABEL GLOBAL */
-
         function setTableMode(mode) {
             if (mode !== 'compact' && mode !== 'full') {
                 return;
@@ -1112,8 +1092,6 @@
 
         document.addEventListener('DOMContentLoaded', function() {
 
-            /* SIDEBAR RESPONSIVE */
-
             const sidebarToggle = document.getElementById('sidebarToggle');
             const sidebarBackdrop = document.getElementById('sidebarBackdrop');
 
@@ -1151,8 +1129,6 @@
                 }
             });
 
-            /* MEMUAT MODE TABEL */
-
             let savedMode = 'compact';
 
             try {
@@ -1166,8 +1142,6 @@
             }
 
             setTableMode(savedMode);
-
-            /* TOOLTIP TABEL PADA MODE COMPACT */
 
             const tooltip = document.getElementById('sidilanTooltip');
             const tooltipText = document.getElementById('sidilanTooltipText');
@@ -1321,8 +1295,6 @@
                     positionTooltip(activeCell);
                 }
             });
-
-            /* MODAL KONFIRMASI */
 
             const modal = document.getElementById('sidilanConfirmModal');
             const title = document.getElementById('sidilanConfirmTitle');

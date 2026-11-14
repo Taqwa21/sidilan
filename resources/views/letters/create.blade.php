@@ -139,7 +139,6 @@
                                 Belum ada PDF yang dipilih.
                             </div>
 
-                            {{-- Pratinjau PDF sebelum disimpan --}}
                             <div id="selected-document" class="document-item mt-2 d-none">
                                 <div class="document-file-icon">
                                     <i class="bi bi-file-earmark-pdf"></i>
@@ -195,16 +194,47 @@
                                 @enderror
                             </div>
 
-                            <div class="col-md-6">
-                                <label for="target_units" class="form-label">
-                                    Unit Kerja <span class="optional-text">(Opsional)</span>
+                            {{-- Pilihan Unit Kerja --}}
+                            <div class="col-12">
+                                <label class="form-label">
+                                    Unit Kerja Tujuan
+                                    <span class="optional-text">(Opsional)</span>
                                 </label>
-                                <input type="text" id="target_units" name="target_units"
-                                    class="form-control @error('target_units') is-invalid @enderror"
-                                    value="{{ old('target_units') }}" placeholder="Contoh: PLP, OJLP">
-                                @error('target_units')
-                                    <div class="invalid-feedback">{{ $message }}</div>
+
+                                <div class="work-unit-selection">
+                                    @forelse ($workUnits as $workUnit)
+                                        <label class="work-unit-option" for="work_unit_{{ $workUnit->id }}">
+                                            <input type="checkbox" id="work_unit_{{ $workUnit->id }}"
+                                                name="work_unit_ids[]" value="{{ $workUnit->id }}"
+                                                {{ in_array($workUnit->id, old('work_unit_ids', [])) ? 'checked' : '' }}>
+
+                                            <span class="work-unit-checkbox">
+                                                <i class="bi bi-check2"></i>
+                                            </span>
+
+                                            <span class="work-unit-name">
+                                                {{ $workUnit->name }}
+                                            </span>
+                                        </label>
+                                    @empty
+                                        <div class="work-unit-empty">
+                                            <i class="bi bi-info-circle"></i>
+                                            Belum ada unit kerja yang terdaftar pada instansi penerima.
+                                        </div>
+                                    @endforelse
+                                </div>
+
+                                @error('work_unit_ids')
+                                    <div class="text-danger small mt-2">{{ $message }}</div>
                                 @enderror
+                                @error('work_unit_ids.*')
+                                    <div class="text-danger small mt-2">{{ $message }}</div>
+                                @enderror
+
+                                <small class="text-muted d-block mt-2">
+                                    Pilih unit kerja yang menjadi tujuan disposisi. Pengguna dapat memilih PLP, OJLP, atau
+                                    keduanya.
+                                </small>
                             </div>
 
                             <div class="col-md-6">
@@ -406,7 +436,86 @@
             color: #a5afbb;
         }
 
-        /* Area upload PDF mengikuti form edit */
+        /* Pilihan unit kerja */
+        .letter-form-page .work-unit-selection {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .letter-form-page .work-unit-option {
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            min-width: 120px;
+            padding: 10px 14px;
+            border: 1px solid #dfe5ec;
+            border-radius: 8px;
+            background: #fff;
+            color: #46566b;
+            cursor: pointer;
+            transition: .15s;
+            margin: 0;
+        }
+
+        .letter-form-page .work-unit-option:hover {
+            border-color: #9bb2cc;
+            background: #f7f9fc;
+        }
+
+        .letter-form-page .work-unit-option input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .letter-form-page .work-unit-checkbox {
+            width: 17px;
+            height: 17px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            background: #fff;
+            color: transparent;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+
+        .letter-form-page .work-unit-name {
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .letter-form-page .work-unit-option:has(input:checked) {
+            border-color: #7898bb;
+            background: #f0f5fb;
+            color: #193b63;
+        }
+
+        .letter-form-page .work-unit-option input:checked+.work-unit-checkbox {
+            border-color: #193b63;
+            background: #193b63;
+            color: #fff;
+        }
+
+        .letter-form-page .work-unit-option:has(input:focus-visible) {
+            outline: 3px solid rgba(47, 91, 137, .15);
+        }
+
+        .letter-form-page .work-unit-empty {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 11px 13px;
+            border: 1px dashed #dce3eb;
+            border-radius: 8px;
+            color: #8491a1;
+            font-size: 11px;
+        }
+
+        /* Area upload PDF */
         .letter-form-page .document-upload-section {
             margin-top: 18px;
             max-width: 650px;

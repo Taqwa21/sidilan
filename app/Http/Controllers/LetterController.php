@@ -4,9 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Letter;
 use App\Models\LetterAttachment;
-use App\Models\LetterDisposition;
 use App\Models\LetterHistory;
 use App\Models\Unit;
+use App\Models\WorkUnit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -22,27 +22,63 @@ class LetterController extends Controller
         return Auth::user()->role?->slug === 'admin';
     }
 
+    /**
+     * Menentukan unit pasangan berdasarkan kode instansi.
+     */
     private function pairedUnitId(int $unitId): int
     {
-        $pairedUnitIds = Unit::where('id', '!=', $unitId)
-            ->orderBy('id')
-            ->pluck('id');
+        $unit = Unit::findOrFail($unitId);
+
+        $pairedCode = match ($unit->code) {
+            'LOGISTIK' => 'PUSAT',
+            'PUSAT' => 'LOGISTIK',
+            default => null,
+        };
 
         abort_unless(
-            $pairedUnitIds->count() === 1,
+            $pairedCode,
             422,
-            'Unit pasangan belum dapat ditentukan. Pastikan data unit SIDILAN terdiri dari dua unit.'
+            'Unit pasangan tidak dapat ditentukan. Kode unit instansi tidak dikenali.'
         );
 
-        return (int) $pairedUnitIds->first();
+        $pairedUnitId = Unit::where('code', $pairedCode)->value('id');
+
+        abort_unless(
+            $pairedUnitId,
+            422,
+            'Unit pasangan belum terdaftar pada sistem.'
+        );
+
+        return (int) $pairedUnitId;
     }
 
+    /**
+     * Mengambil surat yang dapat diakses oleh pengguna.
+     *
+     * Administrator:
+     * - Dapat melihat seluruh surat.
+     *
+     * Akun unit kerja:
+     * - Hanya dapat melihat surat yang disposisinya ditujukan
+     *   kepada unit kerja tersebut.
+     *
+     * Akun instansi:
+     * - Dapat melihat surat yang dibuat oleh instansinya.
+     * - Dapat melihat surat yang diterima instansinya,
+     *   kecuali surat yang masih berstatus draft.
+     */
     private function visibleLetters()
     {
         $user = Auth::user();
 
         if ($this->isAdmin()) {
             return Letter::query();
+        }
+
+        if ($user->work_unit_id) {
+            return Letter::whereHas('dispositions.workUnits', function ($query) use ($user) {
+                $query->where('work_units.id', $user->work_unit_id);
+            });
         }
 
         if (!$user->unit_id) {
@@ -59,6 +95,9 @@ class LetterController extends Controller
         });
     }
 
+    /**
+     * Mencatat perubahan pada riwayat surat.
+     */
     private function recordHistory(
         Letter $letter,
         string $oldStatus,
@@ -76,6 +115,7 @@ class LetterController extends Controller
 
     /**
      * Menyimpan, memperbarui, atau menghapus disposisi awal.
+     * Unit kerja disimpan melalui tabel pivot disposition_work_unit.
      */
     private function syncInitialDisposition(
         Letter $letter,
@@ -86,13 +126,24 @@ class LetterController extends Controller
         $targetUnits = trim($validated['target_units'] ?? '');
         $deadline = $validated['deadline_at'] ?? null;
 
+        $workUnitIds = collect($validated['work_unit_ids'] ?? [])
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values();
+
         $existingDisposition = $letter->dispositions()
             ->where('created_by', $user->id)
             ->orderBy('id')
             ->first();
 
-        if ($instruction === '' && $targetUnits === '' && !$deadline) {
+        if (
+            $instruction === '' &&
+            $targetUnits === '' &&
+            !$deadline &&
+            $workUnitIds->isEmpty()
+        ) {
             if ($existingDisposition) {
+                $existingDisposition->workUnits()->detach();
                 $existingDisposition->delete();
 
                 $this->recordHistory(
@@ -108,7 +159,20 @@ class LetterController extends Controller
 
         if ($instruction === '') {
             throw ValidationException::withMessages([
-                'instruction' => 'Instruksi disposisi wajib diisi jika Unit Kerja atau batas penyelesaian diisi.',
+                'instruction' => 'Instruksi disposisi wajib diisi apabila unit kerja atau batas penyelesaian ditentukan.',
+            ]);
+        }
+
+        $receiverUnitId = $this->pairedUnitId((int) $user->unit_id);
+
+        $validWorkUnitIds = WorkUnit::where('unit_id', $receiverUnitId)
+            ->whereIn('id', $workUnitIds)
+            ->pluck('id')
+            ->map(fn($id) => (int) $id);
+
+        if ($validWorkUnitIds->count() !== $workUnitIds->count()) {
+            throw ValidationException::withMessages([
+                'work_unit_ids' => 'Pilihan unit kerja tidak valid untuk instansi penerima surat.',
             ]);
         }
 
@@ -129,23 +193,32 @@ class LetterController extends Controller
 
         if ($existingDisposition) {
             $existingDisposition->update($dispositionData);
+            $existingDisposition->workUnits()->sync($validWorkUnitIds);
 
             $historyDescription = 'Disposisi awal diperbarui: ' . $instruction;
         } else {
-            $letter->dispositions()->create($dispositionData);
+            $existingDisposition = $letter->dispositions()->create($dispositionData);
+            $existingDisposition->workUnits()->sync($validWorkUnitIds);
 
             $historyDescription = 'Disposisi awal dicatat: ' . $instruction;
         }
 
-        if ($targetUnits !== '') {
-            $historyDescription .= ' | Unit Kerja: ' . $targetUnits;
+        if ($validWorkUnitIds->isNotEmpty()) {
+            $names = WorkUnit::whereIn('id', $validWorkUnitIds)
+                ->orderBy('name')
+                ->pluck('name')
+                ->implode(', ');
+
+            $historyDescription .= ' | Unit Kerja: ' . $names;
         }
 
-        if ($deadline) {
-            $historyDescription .= ' | Batas Penyelesaian: ' . $deadline;
-        } else {
-            $historyDescription .= ' | Batas Penyelesaian: Tidak ditentukan';
+        if ($targetUnits !== '') {
+            $historyDescription .= ' | Keterangan: ' . $targetUnits;
         }
+
+        $historyDescription .= $deadline
+            ? ' | Batas Penyelesaian: ' . $deadline
+            : ' | Batas Penyelesaian: Tidak ditentukan';
 
         $this->recordHistory(
             $letter,
@@ -196,34 +269,97 @@ class LetterController extends Controller
         return $path;
     }
 
+    /**
+     * Menampilkan formulir pembuatan surat.
+     */
     public function create()
     {
-        abort_if($this->isAdmin(), 403, 'Administrator hanya memiliki akses pemantauan.');
-        abort_if(!Auth::user()->unit_id, 403, 'Akun Anda belum memiliki unit kerja.');
-
-        return view('letters.create');
-    }
-
-    public function store(Request $request)
-    {
-        abort_if($this->isAdmin(), 403, 'Administrator tidak dapat membuat surat.');
+        abort_if(
+            $this->isAdmin(),
+            403,
+            'Administrator hanya memiliki akses pemantauan.'
+        );
 
         $user = Auth::user();
 
-        abort_if(!$user->unit_id, 403, 'Akun Anda belum memiliki unit kerja.');
+        abort_if(
+            !$user->unit_id,
+            403,
+            'Akun Anda belum memiliki unit kerja.'
+        );
+
+        abort_if(
+            $user->work_unit_id,
+            403,
+            'Akun Unit Kerja tidak dapat membuat surat baru.'
+        );
+
+        $receiverUnit = Unit::findOrFail(
+            $this->pairedUnitId((int) $user->unit_id)
+        );
+
+        $workUnits = $receiverUnit->workUnits()
+            ->orderBy('name')
+            ->get();
+
+        return view('letters.create', compact('workUnits'));
+    }
+
+    /**
+     * Menyimpan surat baru sebagai draft.
+     */
+    public function store(Request $request)
+    {
+        abort_if(
+            $this->isAdmin(),
+            403,
+            'Administrator tidak dapat membuat surat.'
+        );
+
+        $user = Auth::user();
+
+        abort_if(
+            !$user->unit_id,
+            403,
+            'Akun Anda belum memiliki unit kerja.'
+        );
+
+        abort_if(
+            $user->work_unit_id,
+            403,
+            'Akun Unit Kerja tidak dapat membuat surat baru.'
+        );
 
         $validated = $request->validate([
             'origin' => ['required', 'string', 'max:255'],
-            'letter_number' => ['required', 'string', 'max:255', 'unique:letters,letter_number'],
+            'letter_number' => [
+                'required',
+                'string',
+                'max:255',
+                'unique:letters,letter_number',
+            ],
             'letter_date' => ['required', 'date'],
             'subject' => ['required', 'string', 'max:255'],
             'instruction' => ['nullable', 'string', 'max:5000'],
             'target_units' => ['nullable', 'string', 'max:1000'],
+            'work_unit_ids' => ['nullable', 'array'],
+            'work_unit_ids.*' => [
+                'integer',
+                'distinct',
+                'exists:work_units,id',
+            ],
             'deadline_at' => $this->deadlineRules(),
-            'surat_asli' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
+            'surat_asli' => [
+                'nullable',
+                'file',
+                'mimes:pdf',
+                'max:10240',
+            ],
         ], [
             'surat_asli.mimes' => 'Dokumen surat asli harus berformat PDF.',
             'surat_asli.max' => 'Ukuran PDF surat asli maksimal 10 MB.',
+            'work_unit_ids.*.distinct' => 'Unit kerja tidak boleh dipilih lebih dari satu kali.',
+            'work_unit_ids.*.exists' => 'Unit kerja yang dipilih tidak ditemukan.',
             'deadline_at.after_or_equal' => 'Tanggal deadline tidak boleh sebelum 1 Januari 1970.',
             'deadline_at.before_or_equal' => 'Tanggal deadline maksimal 18 Januari 2038.',
             'deadline_at.date_format' => 'Format tanggal deadline tidak valid.',
@@ -300,6 +436,9 @@ class LetterController extends Controller
             ->with('success', 'Draft surat berhasil dibuat.');
     }
 
+    /**
+     * Menampilkan detail surat.
+     */
     public function show($id)
     {
         $letter = $this->visibleLetters()->with([
@@ -313,7 +452,9 @@ class LetterController extends Controller
             'dispositions.creator',
             'dispositions.assignedUnit',
             'dispositions.assignedUser',
+            'dispositions.workUnits',
             'followUps.user',
+            'followUps.workUnit',
             'followUps.attachments.uploader',
             'attachments.uploader',
             'comments.user',
@@ -322,24 +463,85 @@ class LetterController extends Controller
         $user = Auth::user();
 
         $isSender = !$this->isAdmin()
+            && !$user->work_unit_id
             && (int) $letter->sender_unit_id === (int) $user->unit_id;
 
-        $isReceiver = !$this->isAdmin()
-            && (int) $letter->receiver_unit_id === (int) $user->unit_id;
+        $userWorkUnitId = $user->work_unit_id;
 
-        return view('letters.show', compact('letter', 'isSender', 'isReceiver'));
+        $userWorkUnitAssigned = $userWorkUnitId
+            ? $letter->dispositions()
+            ->whereHas('workUnits', function ($query) use ($userWorkUnitId) {
+                $query->where('work_units.id', $userWorkUnitId);
+            })
+            ->exists()
+            : false;
+
+        // Akun unit kerja juga dapat menjadi penerima
+        // apabila unit kerjanya ditugaskan pada disposisi surat.
+        $isReceiver = !$this->isAdmin()
+            && (int) $letter->receiver_unit_id === (int) $user->unit_id
+            && (!$userWorkUnitId || $userWorkUnitAssigned);
+
+        $workUnits = $letter->receiverUnit
+            ? $letter->receiverUnit->workUnits()
+            ->orderBy('name')
+            ->get()
+            : collect();
+
+        $canCreateDisposition =
+            !$this->isAdmin() &&
+            in_array($letter->status, [
+                'diterima',
+                'didisposisikan',
+                'dalam_proses',
+                'menunggu_tindak_lanjut',
+            ]) &&
+            (
+                ($isReceiver && !$userWorkUnitId) ||
+                ($userWorkUnitId && $userWorkUnitAssigned)
+            );
+
+        return view('letters.show', compact(
+            'letter',
+            'isSender',
+            'isReceiver',
+            'workUnits',
+            'userWorkUnitId',
+            'userWorkUnitAssigned',
+            'canCreateDisposition'
+        ));
     }
 
+    /**
+     * Menampilkan formulir edit surat.
+     */
     public function edit($id)
     {
-        abort_if($this->isAdmin(), 403, 'Administrator hanya memiliki akses pemantauan.');
+        abort_if(
+            $this->isAdmin(),
+            403,
+            'Administrator hanya memiliki akses pemantauan.'
+        );
 
         $user = Auth::user();
 
-        abort_if(!$user->unit_id, 403, 'Akun Anda belum memiliki unit kerja.');
+        abort_if(
+            !$user->unit_id,
+            403,
+            'Akun Anda belum memiliki unit kerja.'
+        );
+
+        abort_if(
+            $user->work_unit_id,
+            403,
+            'Akun Unit Kerja tidak dapat mengedit surat.'
+        );
 
         $letter = $this->visibleLetters()
-            ->with('attachments.uploader')
+            ->with([
+                'attachments.uploader',
+                'dispositions.workUnits',
+            ])
             ->findOrFail($id);
 
         abort_unless(
@@ -355,20 +557,58 @@ class LetterController extends Controller
         );
 
         $initialDisposition = $letter->dispositions()
+            ->with('workUnits')
             ->where('created_by', $user->id)
             ->orderBy('id')
             ->first();
 
-        return view('letters.edit', compact('letter', 'initialDisposition'));
+        $receiverUnit = Unit::findOrFail(
+            $this->pairedUnitId((int) $user->unit_id)
+        );
+
+        $workUnits = $receiverUnit->workUnits()
+            ->orderBy('name')
+            ->get();
+
+        $selectedWorkUnitIds = $initialDisposition
+            ? $initialDisposition->workUnits
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->all()
+            : [];
+
+        return view('letters.edit', compact(
+            'letter',
+            'initialDisposition',
+            'workUnits',
+            'selectedWorkUnitIds'
+        ));
     }
 
+    /**
+     * Memperbarui surat draft.
+     */
     public function update(Request $request, $id)
     {
-        abort_if($this->isAdmin(), 403, 'Administrator tidak dapat mengedit surat.');
+        abort_if(
+            $this->isAdmin(),
+            403,
+            'Administrator tidak dapat mengedit surat.'
+        );
 
         $user = Auth::user();
 
-        abort_if(!$user->unit_id, 403, 'Akun Anda belum memiliki unit kerja.');
+        abort_if(
+            !$user->unit_id,
+            403,
+            'Akun Anda belum memiliki unit kerja.'
+        );
+
+        abort_if(
+            $user->work_unit_id,
+            403,
+            'Akun Unit Kerja tidak dapat mengedit surat.'
+        );
 
         $letter = $this->visibleLetters()->findOrFail($id);
 
@@ -396,12 +636,25 @@ class LetterController extends Controller
             'subject' => ['required', 'string', 'max:255'],
             'instruction' => ['nullable', 'string', 'max:5000'],
             'target_units' => ['nullable', 'string', 'max:1000'],
+            'work_unit_ids' => ['nullable', 'array'],
+            'work_unit_ids.*' => [
+                'integer',
+                'distinct',
+                'exists:work_units,id',
+            ],
             'deadline_at' => $this->deadlineRules(),
-            'surat_asli' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
+            'surat_asli' => [
+                'nullable',
+                'file',
+                'mimes:pdf',
+                'max:10240',
+            ],
             'remove_surat_asli' => ['nullable', 'boolean'],
         ], [
             'surat_asli.mimes' => 'Dokumen surat asli harus berformat PDF.',
             'surat_asli.max' => 'Ukuran PDF surat asli maksimal 10 MB.',
+            'work_unit_ids.*.distinct' => 'Unit kerja tidak boleh dipilih lebih dari satu kali.',
+            'work_unit_ids.*.exists' => 'Unit kerja yang dipilih tidak ditemukan.',
             'deadline_at.after_or_equal' => 'Tanggal deadline tidak boleh sebelum 1 Januari 1970.',
             'deadline_at.before_or_equal' => 'Tanggal deadline maksimal 18 Januari 2038.',
             'deadline_at.date_format' => 'Format tanggal deadline tidak valid.',
@@ -462,13 +715,16 @@ class LetterController extends Controller
                     'Data surat draft diperbarui.'
                 );
 
-                $this->syncInitialDisposition($lockedLetter, $validated, $user);
+                $this->syncInitialDisposition(
+                    $lockedLetter,
+                    $validated,
+                    $user
+                );
 
                 $oldAttachments = $lockedLetter->attachments()
                     ->where('document_type', 'surat_asli')
                     ->get();
 
-                // Jika PDF baru dipilih, ganti PDF lama.
                 if ($pdf) {
                     $newFilePath = $this->saveOriginalPdf(
                         $lockedLetter,
@@ -487,9 +743,7 @@ class LetterController extends Controller
                         'draft',
                         'PDF surat asli diganti dengan dokumen baru.'
                     );
-                }
-                // Jika tidak upload PDF baru tetapi checkbox hapus dipilih.
-                elseif ($removeOriginalPdf) {
+                } elseif ($removeOriginalPdf) {
                     foreach ($oldAttachments as $oldAttachment) {
                         $oldFilePaths[] = $oldAttachment->file_path;
                         $oldAttachment->delete();
@@ -513,7 +767,6 @@ class LetterController extends Controller
             throw $e;
         }
 
-        // File lama dihapus setelah transaksi database berhasil.
         if (!empty($oldFilePaths)) {
             Storage::disk('letter_documents')->delete($oldFilePaths);
         }
@@ -523,13 +776,30 @@ class LetterController extends Controller
             ->with('success', 'Data surat berhasil diperbarui.');
     }
 
+    /**
+     * Menghapus surat draft.
+     */
     public function destroy($id)
     {
-        abort_if($this->isAdmin(), 403, 'Administrator tidak dapat menghapus surat.');
+        abort_if(
+            $this->isAdmin(),
+            403,
+            'Administrator tidak dapat menghapus surat.'
+        );
 
         $user = Auth::user();
 
-        abort_if(!$user->unit_id, 403, 'Akun Anda belum memiliki unit kerja.');
+        abort_if(
+            !$user->unit_id,
+            403,
+            'Akun Anda belum memiliki unit kerja.'
+        );
+
+        abort_if(
+            $user->work_unit_id,
+            403,
+            'Akun Unit Kerja tidak dapat menghapus surat.'
+        );
 
         $letter = $this->visibleLetters()->findOrFail($id);
 
@@ -541,7 +811,11 @@ class LetterController extends Controller
 
         $attachmentPaths = collect();
 
-        DB::transaction(function () use ($letter, $user, &$attachmentPaths) {
+        DB::transaction(function () use (
+            $letter,
+            $user,
+            &$attachmentPaths
+        ) {
             $lockedLetter = Letter::whereKey($letter->id)
                 ->lockForUpdate()
                 ->firstOrFail();
@@ -570,6 +844,14 @@ class LetterController extends Controller
                 ->where('letter_id', $lockedLetter->id)
                 ->delete();
 
+            $dispositionIds = DB::table('letter_dispositions')
+                ->where('letter_id', $lockedLetter->id)
+                ->pluck('id');
+
+            DB::table('disposition_work_unit')
+                ->whereIn('letter_disposition_id', $dispositionIds)
+                ->delete();
+
             DB::table('letter_dispositions')
                 ->where('letter_id', $lockedLetter->id)
                 ->delete();
@@ -582,7 +864,9 @@ class LetterController extends Controller
         });
 
         if ($attachmentPaths->isNotEmpty()) {
-            Storage::disk('letter_documents')->delete($attachmentPaths->all());
+            Storage::disk('letter_documents')->delete(
+                $attachmentPaths->all()
+            );
         }
 
         return redirect()
@@ -590,11 +874,21 @@ class LetterController extends Controller
             ->with('success', 'Draft surat berhasil dihapus.');
     }
 
+    /**
+     * Mengirim surat kepada instansi penerima.
+     */
     public function send($id)
     {
         abort_if($this->isAdmin(), 403);
 
         $user = Auth::user();
+
+        abort_if(
+            $user->work_unit_id,
+            403,
+            'Akun Unit Kerja tidak dapat mengirim surat.'
+        );
+
         $letter = $this->visibleLetters()->findOrFail($id);
 
         abort_unless(
@@ -631,15 +925,19 @@ class LetterController extends Controller
         return back()->with('success', 'Surat berhasil dikirim.');
     }
 
+    /**
+     * Mengonfirmasi penerimaan surat.
+     */
     public function receive(Request $request, $id)
     {
         abort_if($this->isAdmin(), 403);
+
+        $user = Auth::user();
 
         $validated = $request->validate([
             'received_note' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $user = Auth::user();
         $letter = $this->visibleLetters()->findOrFail($id);
 
         abort_unless(
@@ -648,10 +946,20 @@ class LetterController extends Controller
             'Hanya unit penerima yang dapat mengonfirmasi surat.'
         );
 
-        DB::transaction(function () use ($letter, $user, $validated) {
+        DB::transaction(function () use (
+            $letter,
+            $user,
+            $validated
+        ) {
             $lockedLetter = Letter::whereKey($letter->id)
                 ->lockForUpdate()
                 ->firstOrFail();
+
+            abort_unless(
+                (int) $lockedLetter->receiver_unit_id === (int) $user->unit_id,
+                403,
+                'Hanya unit penerima yang dapat mengonfirmasi surat.'
+            );
 
             abort_unless(
                 $lockedLetter->status === 'menunggu_konfirmasi',
@@ -676,23 +984,32 @@ class LetterController extends Controller
             );
         });
 
-        return back()->with('success', 'Penerimaan surat berhasil dikonfirmasi.');
+        return back()->with(
+            'success',
+            'Penerimaan surat berhasil dikonfirmasi.'
+        );
     }
 
+    /**
+     * Koreksi status surat oleh administrator.
+     */
     public function correctStatus(Request $request, $id)
     {
         abort_unless($this->isAdmin(), 403);
 
         $validated = $request->validate([
-            'status' => ['required', Rule::in([
-                'menunggu_konfirmasi',
-                'diterima',
-                'didisposisikan',
-                'dalam_proses',
-                'menunggu_tindak_lanjut',
-                'selesai',
-                'dibatalkan',
-            ])],
+            'status' => [
+                'required',
+                Rule::in([
+                    'menunggu_konfirmasi',
+                    'diterima',
+                    'didisposisikan',
+                    'dalam_proses',
+                    'menunggu_tindak_lanjut',
+                    'selesai',
+                    'dibatalkan',
+                ]),
+            ],
             'reason' => ['required', 'string', 'max:1000'],
         ], [
             'status.required' => 'Status tujuan wajib dipilih.',
@@ -741,18 +1058,31 @@ class LetterController extends Controller
 
         return redirect()
             ->route('letters.show', $id)
-            ->with('success', 'Status surat berhasil dikoreksi dan dicatat dalam riwayat.');
+            ->with(
+                'success',
+                'Status surat berhasil dikoreksi dan dicatat dalam riwayat.'
+            );
     }
 
+    /**
+     * Memperbarui posisi surat oleh instansi penerima.
+     */
     public function updatePosition(Request $request, $id)
     {
         abort_if($this->isAdmin(), 403);
+
+        $user = Auth::user();
+
+        abort_if(
+            $user->work_unit_id,
+            403,
+            'Akun Unit Kerja tidak dapat mengubah posisi surat.'
+        );
 
         $validated = $request->validate([
             'position' => ['required', 'string', 'max:255'],
         ]);
 
-        $user = Auth::user();
         $letter = $this->visibleLetters()->findOrFail($id);
 
         abort_unless(
@@ -761,7 +1091,11 @@ class LetterController extends Controller
             'Hanya unit penerima yang dapat memperbarui posisi surat.'
         );
 
-        DB::transaction(function () use ($letter, $validated, $user) {
+        DB::transaction(function () use (
+            $letter,
+            $validated,
+            $user
+        ) {
             $lockedLetter = Letter::whereKey($letter->id)
                 ->lockForUpdate()
                 ->firstOrFail();
@@ -795,10 +1129,17 @@ class LetterController extends Controller
                 $lockedLetter,
                 $lockedLetter->status,
                 $lockedLetter->status,
-                'Posisi surat diubah dari "' . ($oldPosition ?? '-') . '" menjadi "' . $newPosition . '".'
+                'Posisi surat diubah dari "' .
+                    ($oldPosition ?? '-') .
+                    '" menjadi "' .
+                    $newPosition .
+                    '".'
             );
         });
 
-        return back()->with('success', 'Posisi surat berhasil diperbarui.');
+        return back()->with(
+            'success',
+            'Posisi surat berhasil diperbarui.'
+        );
     }
 }

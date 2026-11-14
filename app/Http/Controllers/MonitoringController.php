@@ -14,6 +14,9 @@ class MonitoringController extends Controller
         return Auth::user()?->role?->slug === 'admin';
     }
 
+    /**
+     * Mengambil surat yang boleh dilihat pengguna pada halaman monitoring.
+     */
     private function visibleLetters()
     {
         $user = Auth::user();
@@ -25,19 +28,96 @@ class MonitoringController extends Controller
             return $query;
         }
 
-        // Pengguna non-admin wajib memiliki unit.
         if (!$user || !$user->unit_id) {
             return $query->whereRaw('1 = 0');
         }
 
-        // Pengguna hanya melihat surat non-draft
-        // yang dikirim atau diterima oleh unitnya.
-        return $query
-            ->where('status', '!=', 'draft')
-            ->where(function ($subQuery) use ($user) {
-                $subQuery->where('sender_unit_id', $user->unit_id)
-                    ->orWhere('receiver_unit_id', $user->unit_id);
+        // Semua pengguna non-admin hanya melihat surat non-draft.
+        $query->where('status', '!=', 'draft');
+
+        /*
+        |--------------------------------------------------------------------------
+        | TU DEPUTI LOGPAL
+        |--------------------------------------------------------------------------
+        |
+        | TU Deputi dapat memantau:
+        | - Surat yang dikirim oleh instansinya.
+        | - Surat yang diterima instansinya.
+        | - Surat yang didisposisikan ke unit kerja di bawah
+        |   instansi Sekretaris Direktorat Logpal.
+        |
+        */
+
+        if ($user->role?->slug === 'logistik') {
+            return $query->where(function ($subQuery) use ($user) {
+                $subQuery
+                    ->where('sender_unit_id', $user->unit_id)
+                    ->orWhere('receiver_unit_id', $user->unit_id)
+                    ->orWhereHas('dispositions.workUnits', function ($workUnitQuery) {
+                        $workUnitQuery->whereHas('unit', function ($unitQuery) {
+                            $unitQuery->where('code', 'PUSAT');
+                        });
+                    });
             });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | AKUN SEKRETARIS PLP / OJLP
+        |--------------------------------------------------------------------------
+        |
+        | Setiap akun memiliki work_unit_id masing-masing.
+        | Akun tetap dapat melihat surat yang berkaitan dengan
+        | instansi Sekretaris serta surat yang ditugaskan ke
+        | unit kerjanya sendiri.
+        |
+        */
+
+        if ($user->work_unit_id) {
+            return $query->where(function ($subQuery) use ($user) {
+                $subQuery
+                    ->where('sender_unit_id', $user->unit_id)
+                    ->orWhere('receiver_unit_id', $user->unit_id)
+                    ->orWhereHas('dispositions.workUnits', function ($workUnitQuery) use ($user) {
+                        $workUnitQuery->where(
+                            'work_units.id',
+                            $user->work_unit_id
+                        );
+                    });
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | SEKRETARIS DIREKTORAT LOGPAL
+        |--------------------------------------------------------------------------
+        |
+        | Akun Sekretaris tanpa unit kerja khusus dapat melihat
+        | surat yang dikirim atau diterima instansinya serta
+        | surat yang ditugaskan ke unit kerja di bawahnya.
+        |
+        */
+
+        if ($user->role?->slug === 'pusat') {
+            return $query->where(function ($subQuery) use ($user) {
+                $subQuery
+                    ->where('sender_unit_id', $user->unit_id)
+                    ->orWhere('receiver_unit_id', $user->unit_id)
+                    ->orWhereHas('dispositions.workUnits', function ($workUnitQuery) use ($user) {
+                        $workUnitQuery->whereHas('unit', function ($unitQuery) use ($user) {
+                            $unitQuery->where('units.id', $user->unit_id);
+                        });
+                    });
+            });
+        }
+
+        // Pengguna non-admin lainnya hanya melihat surat
+        // yang dikirim atau diterima oleh instansinya.
+        return $query->where(function ($subQuery) use ($user) {
+            $subQuery
+                ->where('sender_unit_id', $user->unit_id)
+                ->orWhere('receiver_unit_id', $user->unit_id);
+        });
     }
 
     public function index(Request $request)
@@ -81,21 +161,24 @@ class MonitoringController extends Controller
                 'receiverUnit',
                 'classification',
 
-                // Disposisi terbaru beserta penerimanya.
+                // Disposisi beserta unit kerja yang ditugaskan.
                 'dispositions' => function ($query) {
                     $query->latest('created_at');
                 },
                 'dispositions.assignedUnit',
                 'dispositions.assignedUser',
+                'dispositions.workUnits',
+                'dispositions.workUnits.unit',
 
-                // Tindak lanjut terbaru beserta PIC dan lampiran.
+                // Tindak lanjut beserta unit kerja, PIC, dan lampiran.
                 'followUps' => function ($query) {
                     $query->latest('created_at');
                 },
                 'followUps.user',
+                'followUps.workUnit',
                 'followUps.attachments',
 
-                // Riwayat aktivitas terbaru beserta petugas.
+                // Riwayat aktivitas beserta petugas.
                 'histories' => function ($query) {
                     $query->latest('created_at');
                 },
@@ -167,10 +250,15 @@ class MonitoringController extends Controller
         |--------------------------------------------------------------------------
         | STATISTIK MONITORING
         |--------------------------------------------------------------------------
+        |
+        | Statistik dihitung dari seluruh surat yang dapat diakses
+        | pengguna, bukan hanya hasil filter tabel.
+        |
+        | Satu surat tetap dihitung satu kali meskipun memiliki
+        | beberapa disposisi atau ditugaskan ke beberapa unit kerja.
+        |
         */
 
-        // Statistik dihitung dari seluruh surat yang dapat diakses pengguna,
-        // bukan hanya hasil filter tabel.
         $statisticsQuery = $this->visibleLetters();
 
         $totalSurat = (clone $statisticsQuery)->count();

@@ -11,6 +11,7 @@ class LetterFollowUp extends Model
     protected $fillable = [
         'letter_id',
         'user_id',
+        'work_unit_id',
         'progress_status',
         'description',
     ];
@@ -23,6 +24,11 @@ class LetterFollowUp extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function workUnit(): BelongsTo
+    {
+        return $this->belongsTo(WorkUnit::class, 'work_unit_id');
     }
 
     public function attachments(): HasMany

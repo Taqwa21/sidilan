@@ -18,6 +18,7 @@ class User extends Authenticatable
         'password',
         'role_id',
         'unit_id',
+        'work_unit_id',
     ];
 
     protected $hidden = [
@@ -38,9 +39,20 @@ class User extends Authenticatable
         return $this->belongsTo(Role::class);
     }
 
+    /**
+     * Instansi induk pengguna.
+     */
     public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class);
+    }
+
+    /**
+     * Unit kerja pengguna, misalnya PLP atau OJLP.
+     */
+    public function workUnit(): BelongsTo
+    {
+        return $this->belongsTo(WorkUnit::class, 'work_unit_id');
     }
 
     public function createdLetters(): HasMany

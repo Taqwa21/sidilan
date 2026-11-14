@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class LetterDisposition extends Model
 {
@@ -45,5 +46,18 @@ class LetterDisposition extends Model
     public function assignedUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to_user_id');
+    }
+
+    /**
+     * Unit kerja yang menerima disposisi ini.
+     */
+    public function workUnits(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            WorkUnit::class,
+            'disposition_work_unit',
+            'letter_disposition_id',
+            'work_unit_id'
+        )->withTimestamps();
     }
 }

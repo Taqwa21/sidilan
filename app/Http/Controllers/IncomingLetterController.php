@@ -12,6 +12,7 @@ class IncomingLetterController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
+        $isAdmin = $user->role?->slug === 'admin';
 
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
@@ -43,21 +44,32 @@ class IncomingLetterController extends Controller
                 'senderUnit',
                 'receiverUnit',
                 'classification',
-                'dispositions',
+                'dispositions.workUnits',
                 'followUps.attachments',
                 'attachments',
             ])
             ->whereNotNull('receiver_unit_id');
 
-        // Pembatasan akses berdasarkan unit penerima.
-        if ($user->role?->slug !== 'admin') {
+        // Admin dapat melihat seluruh surat masuk.
+        if (!$isAdmin) {
+            // Akun non-admin dibatasi berdasarkan instansinya.
             if (!$user->unit_id) {
                 $query->whereRaw('1 = 0');
             } else {
-                $query->where('receiver_unit_id', $user->unit_id)
-                    ->where('status', '!=', 'draft');
+                $query->where('receiver_unit_id', $user->unit_id);
+
+                // Jika memiliki unit kerja, surat juga harus
+                // ditugaskan melalui disposisi kepada unit tersebut.
+                if ($user->work_unit_id) {
+                    $query->whereHas('dispositions.workUnits', function ($q) use ($user) {
+                        $q->where('work_units.id', $user->work_unit_id);
+                    });
+                }
             }
         }
+
+        // Surat masuk tidak menampilkan draft.
+        $query->where('status', '!=', 'draft');
 
         $search = trim($validated['search'] ?? '');
         $status = $validated['status'] ?? '';
@@ -69,7 +81,10 @@ class IncomingLetterController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('letter_number', 'like', "%{$search}%")
                     ->orWhere('subject', 'like', "%{$search}%")
-                    ->orWhere('origin', 'like', "%{$search}%");
+                    ->orWhere('origin', 'like', "%{$search}%")
+                    ->orWhereHas('senderUnit', function ($unitQuery) use ($search) {
+                        $unitQuery->where('name', 'like', "%{$search}%");
+                    });
             });
         }
 
@@ -94,7 +109,7 @@ class IncomingLetterController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        return view('letters.index', [
+        return view('letters.incoming.index', [
             'letters' => $letters,
             'search' => $search,
             'status' => $status,

@@ -1,14 +1,14 @@
-# SIDILAN
+# SiDILAN
 
-### Sistem Digital Monitoring Tindak Lanjut Surat
+## Sistem Digital Monitoring Tindak Lanjut Surat
 
-SIDILAN adalah aplikasi berbasis web untuk membantu pengelolaan, pencatatan, pemantauan, dan tindak lanjut surat antara Deputi Bidang Logistik dan Peralatan dengan Direktorat terkait di BNPB.
+SiDILAN adalah aplikasi berbasis web yang dikembangkan untuk membantu pengelolaan, pencatatan, pemantauan, dan tindak lanjut surat antara Deputi Bidang Logistik dan Peralatan dengan Direktorat terkait di BNPB.
 
-Aplikasi ini dikembangkan untuk mempermudah proses administrasi surat secara digital, mulai dari pencatatan surat masuk dan keluar, penerimaan surat, disposisi, tindak lanjut, hingga monitoring dan pelaporan.
+Aplikasi ini bertujuan mempermudah proses administrasi surat secara digital, mulai dari pencatatan surat masuk dan keluar, penerimaan surat, disposisi, tindak lanjut, hingga monitoring dan pelaporan.
 
 ## Status Pengembangan
 
-SIDILAN masih dalam tahap pengembangan dan pengujian.
+SiDILAN masih dalam tahap pengembangan dan pengujian.
 
 - Pengembangan dilakukan secara lokal menggunakan XAMPP.
 - Database pengembangan menggunakan MySQL.
@@ -22,7 +22,7 @@ SIDILAN masih dalam tahap pengembangan dan pengujian.
 
 - Pencatatan surat masuk dan surat keluar.
 - Pengelolaan nomor agenda dan nomor surat.
-- Informasi klasifikasi, tanggal surat, asal surat, dan perihal.
+- Pengelolaan informasi klasifikasi, tanggal surat, asal surat, dan perihal.
 - Pengisian uraian berkas dan posisi surat.
 - Pengelolaan dokumen surat.
 - Pengaturan hak akses surat berdasarkan unit kerja.
@@ -32,7 +32,7 @@ SIDILAN masih dalam tahap pengembangan dan pengujian.
 
 - Pembuatan disposisi surat.
 - Pengisian instruksi dan tujuan disposisi.
-- Penentuan unit atau petugas penerima disposisi.
+- Penentuan unit kerja penerima disposisi.
 - Pengisian batas waktu penyelesaian.
 - Pemantauan status disposisi.
 
@@ -42,16 +42,16 @@ SIDILAN masih dalam tahap pengembangan dan pengujian.
 - Pembaruan status penyelesaian.
 - Penambahan keterangan tindak lanjut.
 - Upload bukti tindak lanjut secara opsional.
-- Pemantauan perkembangan tindak lanjut surat.
+- Pemantauan perkembangan tindak lanjut surat berdasarkan unit kerja.
 
 ### 4. Monitoring Surat
 
 - Pemantauan status surat.
 - Informasi posisi surat.
 - Monitoring proses disposisi dan tindak lanjut.
-- Informasi penerima disposisi dan penanggung jawab.
+- Informasi unit kerja penerima disposisi.
 - Pemantauan batas waktu penyelesaian.
-- Indikator persentase penyelesaian surat.
+- Indikator penyelesaian surat.
 - Pencarian dan penyaringan data berdasarkan status dan rentang tanggal.
 
 ### 5. Laporan dan Riwayat
@@ -67,7 +67,7 @@ SIDILAN masih dalam tahap pengembangan dan pengujian.
 - Administrator.
 - Petugas Deputi Bidang Logistik dan Peralatan.
 - Petugas Direktorat.
-- Pembatasan akses berdasarkan peran dan unit kerja.
+- Pengaturan hak akses berdasarkan peran dan unit kerja.
 
 ### 7. Pengelolaan Dokumen
 
@@ -85,7 +85,7 @@ SIDILAN masih dalam tahap pengembangan dan pengujian.
 - Mode Compact dan Full.
 - Preferensi tampilan tersimpan pada browser masing-masing pengguna.
 - Tooltip informasi pada mode Compact.
-- Tampilan konsisten pada seluruh halaman aplikasi.
+- Tampilan konsisten pada halaman aplikasi.
 
 ## Teknologi yang Digunakan
 
@@ -164,7 +164,7 @@ Masuk ke folder proyek:
 cd sidilan
 ```
 
-Catatan: Repository SIDILAN bersifat privat sehingga pengguna harus memiliki akses GitHub.
+Catatan: Repository SiDILAN bersifat privat sehingga pengguna harus memiliki akses GitHub.
 
 ### 3. Install Dependency Laravel
 
@@ -223,7 +223,7 @@ Jalankan:
 php artisan key:generate
 ```
 
-Perintah tersebut akan membuat APP_KEY secara otomatis pada file `.env`.
+Perintah tersebut akan membuat `APP_KEY` secara otomatis pada file `.env`.
 
 ### 7. Jalankan Migration dan Seeder
 
@@ -233,12 +233,12 @@ Jalankan:
 php artisan migrate --seed
 ```
 
-Perintah tersebut akan membuat struktur tabel dan mengisi data awal aplikasi, meliputi:
+Perintah tersebut akan membuat struktur tabel dan mengisi data awal aplikasi sesuai konfigurasi seeder, seperti:
 
 - Role pengguna.
 - Unit kerja.
 - Klasifikasi surat.
-- Target disposisi.
+- Data pendukung aplikasi.
 
 Seeder akun demo hanya dijalankan ketika aplikasi menggunakan lingkungan `local`.
 
@@ -265,7 +265,7 @@ Buka browser:
 
 http://127.0.0.1:8000
 
-SIDILAN sekarang sudah dapat digunakan secara lokal.
+SiDILAN sekarang sudah dapat digunakan secara lokal.
 
 ## Akun Demo Lokal
 
@@ -283,7 +283,7 @@ Catatan: Akun dan password tersebut hanya untuk pengujian lokal. Jangan digunaka
 
 ## Persiapan Produksi
 
-SIDILAN dirancang agar dapat dipasang pada server yang mendukung PHP, Laravel, dan MySQL.
+SiDILAN dirancang agar dapat dipasang pada server yang mendukung PHP, Laravel, dan MySQL.
 
 Konfigurasi produksi menggunakan file `.env` tersendiri dan tidak menggunakan konfigurasi database lokal XAMPP.
 
@@ -310,7 +310,7 @@ Setelah database siap, buat akun Administrator pertama:
 php artisan sidilan:buat-admin
 ```
 
-Perintah tersebut hanya dapat dijalankan ketika `APP_ENV=production`.
+Perintah tersebut digunakan ketika `APP_ENV=production`.
 
 Setelah Administrator berhasil dibuat, akun petugas dapat ditambahkan melalui halaman manajemen pengguna aplikasi.
 
@@ -347,7 +347,7 @@ sidilan/
 
 ## Status Surat
 
-SIDILAN menggunakan beberapa tahapan status surat:
+SiDILAN menggunakan beberapa tahapan status surat:
 
 - Draft
 - Terkirim
@@ -363,7 +363,7 @@ Setiap perubahan status dicatat dalam riwayat surat untuk mempermudah pemantauan
 
 ## Pengembangan Selanjutnya
 
-SIDILAN masih dalam tahap pengembangan. Fitur dan dokumentasi akan diperbarui secara berkala mengikuti kebutuhan sistem dan hasil evaluasi.
+SiDILAN masih dalam tahap pengembangan dan pengujian. Fitur serta dokumentasi akan diperbarui secara berkala mengikuti kebutuhan sistem dan hasil evaluasi.
 
 ## Repository
 

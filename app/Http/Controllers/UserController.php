@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Role;
 use App\Models\Unit;
+use App\Models\WorkUnit;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -12,14 +13,26 @@ class UserController extends Controller
 {
     public function index()
     {
-        $users = User::with(['role', 'unit'])
+        $users = User::with(['role', 'unit', 'workUnit'])
             ->orderBy('name')
             ->get();
 
         $roles = Role::orderBy('name')->get();
-        $units = Unit::orderBy('name')->get();
 
-        return view('admin.users.index', compact('users', 'roles', 'units'));
+        $units = Unit::with('workUnits')
+            ->orderBy('name')
+            ->get();
+
+        $workUnits = WorkUnit::with('unit')
+            ->orderBy('name')
+            ->get();
+
+        return view('admin.users.index', compact(
+            'users',
+            'roles',
+            'units',
+            'workUnits'
+        ));
     }
 
     public function store(Request $request)
@@ -30,6 +43,13 @@ class UserController extends Controller
             'password' => 'required|string|min:8',
             'role_id' => 'required|exists:roles,id',
             'unit_id' => 'nullable|exists:units,id',
+            'work_unit_id' => [
+                'nullable',
+                Rule::exists('work_units', 'id')
+                    ->where(function ($query) use ($request) {
+                        $query->where('unit_id', $request->input('unit_id'));
+                    }),
+            ],
         ]);
 
         User::create($validated);
@@ -51,6 +71,13 @@ class UserController extends Controller
             'password' => 'nullable|string|min:8',
             'role_id' => 'required|exists:roles,id',
             'unit_id' => 'nullable|exists:units,id',
+            'work_unit_id' => [
+                'nullable',
+                Rule::exists('work_units', 'id')
+                    ->where(function ($query) use ($request) {
+                        $query->where('unit_id', $request->input('unit_id'));
+                    }),
+            ],
         ]);
 
         $adminRole = Role::where('slug', 'admin')->first();
@@ -61,7 +88,9 @@ class UserController extends Controller
             $validated['role_id'] != $adminRole->id &&
             User::where('role_id', $adminRole->id)->count() <= 1
         ) {
-            return back()->with('error', 'Role admin terakhir tidak dapat diubah.');
+            return back()
+                ->withInput()
+                ->with('error', 'Role admin terakhir tidak dapat diubah.');
         }
 
         if (empty($validated['password'])) {
@@ -77,7 +106,8 @@ class UserController extends Controller
     public function destroy(User $user)
     {
         if ($user->id === auth()->id()) {
-            return back()->with('error', 'Anda tidak dapat menghapus akun yang sedang digunakan.');
+            return back()
+                ->with('error', 'Anda tidak dapat menghapus akun yang sedang digunakan.');
         }
 
         $adminRole = Role::where('slug', 'admin')->first();
@@ -87,7 +117,8 @@ class UserController extends Controller
             $user->role_id == $adminRole->id &&
             User::where('role_id', $adminRole->id)->count() <= 1
         ) {
-            return back()->with('error', 'Admin terakhir tidak dapat dihapus.');
+            return back()
+                ->with('error', 'Admin terakhir tidak dapat dihapus.');
         }
 
         $user->delete();

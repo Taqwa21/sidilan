@@ -22,13 +22,46 @@
         $isFinished = in_array($currentStatus, ['selesai', 'dibatalkan']);
         $isAdmin = auth()->user()->role?->slug === 'admin';
 
+        $user = auth()->user();
+        $userWorkUnitId = $user->work_unit_id;
+
         $canUploadReceipt = !$isAdmin && $isReceiver && !$isFinished && $currentStatus !== 'draft';
         $canUpdatePosition = !$isAdmin && $isReceiver && !$isFinished;
 
         $latestDisposition = $letter->dispositions->sortByDesc('created_at')->first();
         $latestFollowUp = $letter->followUps->sortByDesc('created_at')->first();
 
-        // Deadline hanya dapat diperbarui oleh unit pengirim setelah surat dikirim.
+        $assignedWorkUnits = $letter->dispositions
+            ->flatMap(fn($disposition) => $disposition->workUnits ?? collect())
+            ->unique('id')
+            ->values();
+
+        $userWorkUnitAssigned = $userWorkUnitId ? $assignedWorkUnits->contains('id', (int) $userWorkUnitId) : false;
+
+        $userWorkUnit = $user->workUnit ?? null;
+
+        $userWorkUnitFollowUps = $userWorkUnitId
+            ? $letter->followUps->where('work_unit_id', $userWorkUnitId)->sortByDesc('created_at')
+            : collect();
+
+        $latestUserWorkUnitFollowUp = $userWorkUnitFollowUps->first();
+
+        /*
+         * Akun unit kerja yang ditugaskan melalui disposisi
+         * dapat mencatat tindak lanjut untuk unit kerjanya sendiri.
+         */
+        $canSubmitFollowUp =
+            !$isAdmin &&
+            !$isFinished &&
+            $userWorkUnitId &&
+            $userWorkUnitAssigned &&
+            in_array($currentStatus, ['diterima', 'dalam_proses', 'didisposisikan', 'menunggu_tindak_lanjut']);
+
+        $canCreateDisposition =
+            !$isAdmin &&
+            in_array($currentStatus, ['diterima', 'didisposisikan', 'dalam_proses', 'menunggu_tindak_lanjut']) &&
+            (($isReceiver && !$userWorkUnitId) || ($userWorkUnitId && $userWorkUnitAssigned));
+
         $canUpdateDeadline =
             !$isAdmin && $isSender && $currentStatus !== 'draft' && !$isFinished && $latestDisposition !== null;
 
@@ -60,6 +93,19 @@
         }
 
         $formatDate = fn($date, $format = 'd M Y, H:i') => $date?->format($format) ?? '-';
+
+        $progressLabel = function ($status) use ($statusLabels) {
+            return $statusLabels[$status] ?? ucfirst(str_replace('_', ' ', $status ?? '-'));
+        };
+
+        $progressBadge = function ($status) {
+            return match ($status) {
+                'selesai' => 'bg-success',
+                'menunggu_tindak_lanjut' => 'bg-warning text-dark',
+                'dalam_proses' => 'bg-primary',
+                default => 'bg-secondary',
+            };
+        };
     @endphp
 
     <style>
@@ -417,6 +463,60 @@
             margin-bottom: 0;
         }
 
+        .work-unit-card {
+            padding: 15px;
+            border: 1px solid var(--detail-border);
+            border-radius: 10px;
+            background: #fff;
+            margin-bottom: 10px;
+        }
+
+        .work-unit-card:last-child {
+            margin-bottom: 0;
+        }
+
+        .work-unit-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .work-unit-name {
+            color: var(--detail-navy);
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .work-unit-option {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 13px;
+            border: 1px solid var(--detail-border);
+            border-radius: 9px;
+            cursor: pointer;
+            transition: .15s ease;
+        }
+
+        .work-unit-option:hover {
+            background: #fffaf5;
+            border-color: #f2c18e;
+        }
+
+        .work-unit-option input {
+            margin-top: 3px;
+            flex-shrink: 0;
+        }
+
+        .work-unit-option-name {
+            color: var(--detail-navy);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
         #informasi-surat,
         #informasi-surat .card-body,
         #informasi-surat .row,
@@ -581,6 +681,7 @@
                                 <span class="section-icon"><i class="bi bi-send"></i></span>
                                 Informasi Pengiriman
                             </div>
+
                             <div class="row g-2">
                                 <div class="col-12">
                                     <div class="info-item">
@@ -704,6 +805,7 @@
                         </div>
                     </div>
 
+                    {{-- DISPOSISI TERAKHIR --}}
                     <div class="col-lg-6">
                         <div class="detail-section">
                             <div class="detail-section-title">
@@ -718,10 +820,18 @@
                                 </div>
 
                                 <div class="row g-2">
-                                    <div class="col-sm-6">
+                                    <div class="col-12">
                                         <div class="info-item">
-                                            <div class="info-label">Unit Kerja / Tujuan</div>
-                                            <div class="info-value">{{ $latestDisposition->target_units ?: '-' }}</div>
+                                            <div class="info-label">Unit Kerja yang Ditugaskan</div>
+                                            <div class="info-value">
+                                                @forelse ($latestDisposition->workUnits as $workUnit)
+                                                    <span class="badge bg-primary me-1 mb-1">
+                                                        {{ $workUnit->name }}
+                                                    </span>
+                                                @empty
+                                                    {{ $latestDisposition->target_units ?: '-' }}
+                                                @endforelse
+                                            </div>
                                         </div>
                                     </div>
 
@@ -740,7 +850,7 @@
                                         </div>
                                     </div>
 
-                                    <div class="col-sm-6">
+                                    <div class="col-12">
                                         <div class="info-item">
                                             <div class="info-label">Batas Penyelesaian</div>
                                             <div class="info-value">
@@ -758,58 +868,76 @@
                         </div>
                     </div>
 
+                    {{-- RINGKASAN TINDAK LANJUT PER UNIT --}}
                     <div class="col-lg-6">
                         <div class="detail-section">
                             <div class="detail-section-title">
                                 <span class="section-icon"><i class="bi bi-list-check"></i></span>
-                                Tindak Lanjut Terakhir
+                                Perkembangan Tindak Lanjut
                             </div>
 
-                            @if ($latestFollowUp)
-                                <div class="row g-2">
-                                    <div class="col-sm-6">
-                                        <div class="info-item">
-                                            <div class="info-label">Status Tindak Lanjut</div>
-                                            <div class="mt-1">
-                                                @if ($latestFollowUp->progress_status === 'selesai')
-                                                    <span class="badge bg-success">Selesai</span>
-                                                @elseif ($latestFollowUp->progress_status === 'menunggu_tindak_lanjut')
-                                                    <span class="badge bg-warning text-dark">Menunggu Tindak Lanjut</span>
-                                                @else
-                                                    <span class="badge bg-primary">
-                                                        {{ $statusLabels[$latestFollowUp->progress_status] ?? ucfirst($latestFollowUp->progress_status) }}
-                                                    </span>
-                                                @endif
+                            @if ($assignedWorkUnits->isNotEmpty())
+                                @foreach ($assignedWorkUnits as $workUnit)
+                                    @php
+                                        $workUnitLatestFollowUp = $letter->followUps
+                                            ->where('work_unit_id', $workUnit->id)
+                                            ->sortByDesc('created_at')
+                                            ->first();
+                                    @endphp
+
+                                    <div class="work-unit-card">
+                                        <div class="work-unit-card-header">
+                                            <div class="work-unit-name">
+                                                <i class="bi bi-diagram-3 me-1"></i>
+                                                {{ $workUnit->name }}
                                             </div>
-                                        </div>
-                                    </div>
 
-                                    <div class="col-sm-6">
-                                        <div class="info-item">
-                                            <div class="info-label">Petugas</div>
-                                            <div class="info-value">{{ $latestFollowUp->user->name ?? '-' }}</div>
+                                            @if ($workUnitLatestFollowUp)
+                                                <span
+                                                    class="badge {{ $progressBadge($workUnitLatestFollowUp->progress_status) }}">
+                                                    {{ $progressLabel($workUnitLatestFollowUp->progress_status) }}
+                                                </span>
+                                            @else
+                                                <span class="badge bg-secondary">Belum Ada Tindak Lanjut</span>
+                                            @endif
                                         </div>
-                                    </div>
 
-                                    <div class="col-12">
-                                        <div class="info-item">
-                                            <div class="info-label">Waktu Aktivitas</div>
-                                            <div class="info-value">{{ $formatDate($latestFollowUp->created_at) }}</div>
-                                        </div>
-                                    </div>
+                                        @if ($workUnitLatestFollowUp)
+                                            <div class="small text-muted mb-2">
+                                                Petugas: {{ $workUnitLatestFollowUp->user->name ?? '-' }}
+                                                · {{ $formatDate($workUnitLatestFollowUp->created_at) }}
+                                            </div>
 
-                                    <div class="col-12">
-                                        <div class="info-item">
-                                            <div class="info-label">Keterangan Perkembangan</div>
-                                            <div class="info-value fw-normal">{{ $latestFollowUp->description }}</div>
-                                        </div>
+                                            <div class="info-item">
+                                                <div class="info-label">Perkembangan Terakhir</div>
+                                                <div class="info-value fw-normal">
+                                                    {{ $workUnitLatestFollowUp->description }}
+                                                </div>
+                                            </div>
+                                        @else
+                                            <div class="small text-muted">
+                                                Unit kerja ini belum mencatat perkembangan tindak lanjut.
+                                            </div>
+                                        @endif
                                     </div>
-                                </div>
+                                @endforeach
                             @else
-                                <div class="empty-state">
-                                    <i class="bi bi-clipboard-x"></i>
-                                    Belum ada tindak lanjut.
-                                </div>
+                                @if ($latestFollowUp)
+                                    <div class="info-item">
+                                        <div class="info-label">Catatan Tindak Lanjut Lama</div>
+                                        <div class="info-value fw-normal">
+                                            {{ $latestFollowUp->description }}
+                                        </div>
+                                        <div class="small text-muted mt-2">
+                                            Data tindak lanjut ini belum memiliki penetapan unit kerja.
+                                        </div>
+                                    </div>
+                                @else
+                                    <div class="empty-state">
+                                        <i class="bi bi-clipboard-x"></i>
+                                        Belum ada unit kerja yang menerima disposisi.
+                                    </div>
+                                @endif
                             @endif
                         </div>
                     </div>
@@ -860,7 +988,7 @@
                         </div>
                     @endif
 
-                    {{-- PEMBARUAN DEADLINE OLEH PENGIRIM --}}
+                    {{-- PEMBARUAN DEADLINE --}}
                     @if ($canUpdateDeadline)
                         <div class="action-card">
                             <div class="action-card-header">
@@ -882,8 +1010,7 @@
                                     <div class="row align-items-end g-3">
                                         <div class="col-md-9">
                                             <label for="update_deadline_at" class="form-label">
-                                                Batas Penyelesaian
-                                                <span class="text-muted">(Opsional)</span>
+                                                Batas Penyelesaian (Opsional)
                                             </label>
 
                                             <input type="date" name="deadline_at" id="update_deadline_at"
@@ -999,7 +1126,7 @@
                     @endif
 
                     {{-- DISPOSISI --}}
-                    @if ($isReceiver && in_array($currentStatus, ['diterima', 'dalam_proses']))
+                    @if ($canCreateDisposition)
                         <div class="action-card">
                             <div class="action-card-header">
                                 <span class="action-icon"><i class="bi bi-share"></i></span>
@@ -1008,28 +1135,55 @@
 
                             <div class="action-card-body">
                                 <p class="text-muted small">
-                                    Berikan instruksi atau arahan tindak lanjut terhadap surat ini.
+                                    Pilih unit kerja yang menerima tugas tindak lanjut. Satu surat dapat ditugaskan
+                                    kepada PLP, OJLP, atau keduanya sekaligus. Surat tetap tercatat sebagai satu surat.
                                 </p>
 
                                 <form action="{{ route('letters.dispositions.store', $letter->id) }}" method="POST">
                                     @csrf
 
                                     <div class="mb-3">
-                                        <label for="target_units" class="form-label">
-                                            Unit Kerja / Tujuan Disposisi
+                                        <label class="form-label">
+                                            Unit Kerja Tujuan Disposisi
                                         </label>
 
-                                        <input type="text" name="target_units" id="target_units"
-                                            class="form-control @error('target_units') is-invalid @enderror"
-                                            value="{{ old('target_units') }}"
-                                            placeholder="Contoh: PLP, OJLP atau keterangan lainnya">
+                                        @if (isset($workUnits) && $workUnits->isNotEmpty())
+                                            <div class="row g-2">
+                                                @foreach ($workUnits as $workUnit)
+                                                    <div class="col-md-6">
+                                                        <label class="work-unit-option w-100">
+                                                            <input type="checkbox" name="work_unit_ids[]"
+                                                                value="{{ $workUnit->id }}" @checked(in_array((string) $workUnit->id, old('work_unit_ids', [])))>
 
-                                        <small class="text-muted">
-                                            Isi sesuai unit kerja atau tujuan disposisi.
-                                        </small>
+                                                            <span>
+                                                                <span class="work-unit-option-name d-block">
+                                                                    {{ $workUnit->name }}
+                                                                </span>
+                                                                <small class="text-muted">
+                                                                    {{ $workUnit->unit->name ?? 'Unit kerja' }}
+                                                                </small>
+                                                            </span>
+                                                        </label>
+                                                    </div>
+                                                @endforeach
+                                            </div>
 
-                                        @error('target_units')
-                                            <div class="invalid-feedback">{{ $message }}</div>
+                                            <small class="text-muted d-block mt-2">
+                                                Centang satu atau beberapa unit kerja sesuai tujuan disposisi.
+                                            </small>
+                                        @else
+                                            <div class="alert alert-warning mb-0">
+                                                Belum ada unit kerja yang terdaftar pada instansi penerima.
+                                                Tambahkan unit kerja melalui menu Manajemen Unit Kerja terlebih dahulu.
+                                            </div>
+                                        @endif
+
+                                        @error('work_unit_ids')
+                                            <div class="text-danger small mt-2">{{ $message }}</div>
+                                        @enderror
+
+                                        @error('work_unit_ids.*')
+                                            <div class="text-danger small mt-2">{{ $message }}</div>
                                         @enderror
                                     </div>
 
@@ -1044,7 +1198,7 @@
                                         @enderror
                                     </div>
 
-                                    <button type="submit" class="btn btn-warning">
+                                    <button type="submit" class="btn btn-warning" @disabled(!isset($workUnits) || $workUnits->isEmpty())>
                                         <i class="bi bi-share me-1"></i>
                                         Simpan Disposisi
                                     </button>
@@ -1053,11 +1207,8 @@
                         </div>
                     @endif
 
-                    {{-- TINDAK LANJUT --}}
-                    @if (
-                        $isReceiver &&
-                            !$isFinished &&
-                            in_array($currentStatus, ['diterima', 'dalam_proses', 'didisposisikan', 'menunggu_tindak_lanjut']))
+                    {{-- TINDAK LANJUT PER UNIT KERJA --}}
+                    @if ($canSubmitFollowUp)
                         <div class="action-card">
                             <div class="action-card-header">
                                 <span class="action-icon"><i class="bi bi-list-check"></i></span>
@@ -1065,14 +1216,16 @@
                             </div>
 
                             <div class="action-card-body">
-                                <p class="text-muted small">
-                                    Catat perkembangan penanganan surat oleh unit penerima.
-                                    Bukti PDF dapat diunggah pada bagian Dokumen Surat dan bersifat opsional.
-                                </p>
+                                <div class="alert alert-info">
+                                    <i class="bi bi-diagram-3 me-1"></i>
+                                    Tindak lanjut ini akan dicatat atas nama unit kerja
+                                    <strong>{{ $userWorkUnit->name ?? 'Unit kerja Anda' }}</strong>.
+                                    Catatan unit kerja lain tidak akan tertimpa.
+                                </div>
 
                                 <form action="{{ route('letters.followups.store', $letter->id) }}" method="POST"
                                     data-confirm data-confirm-title="Simpan Tindak Lanjut?"
-                                    data-confirm-message="Apakah Anda yakin ingin menyimpan perkembangan tindak lanjut ini?"
+                                    data-confirm-message="Apakah Anda yakin ingin menyimpan perkembangan tindak lanjut unit kerja ini?"
                                     data-confirm-button="Ya, Simpan" data-confirm-type="primary">
                                     @csrf
 
@@ -1107,7 +1260,7 @@
 
                                         <textarea name="description" id="follow_up_description"
                                             class="form-control @error('description') is-invalid @enderror" rows="4"
-                                            placeholder="Jelaskan perkembangan tindak lanjut..." required>{{ old('description') }}</textarea>
+                                            placeholder="Jelaskan perkembangan tindak lanjut unit kerja Anda..." required>{{ old('description') }}</textarea>
 
                                         @error('description')
                                             <div class="invalid-feedback">{{ $message }}</div>
@@ -1120,6 +1273,12 @@
                                     </button>
                                 </form>
                             </div>
+                        </div>
+                    @elseif (!$isAdmin && !$isFinished && $userWorkUnitId && !$userWorkUnitAssigned && $assignedWorkUnits->isNotEmpty())
+                        <div class="alert alert-secondary">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Unit kerja Anda belum ditugaskan untuk menindaklanjuti surat ini.
+                            Anda tetap dapat melihat informasi surat, tetapi tidak dapat mengisi tindak lanjut.
                         </div>
                     @endif
 
@@ -1222,6 +1381,8 @@
                         !$isAdmin &&
                             !$canUpdatePosition &&
                             !$canUpdateDeadline &&
+                            !$canSubmitFollowUp &&
+                            !$canCreateDisposition &&
                             !($isSender && $currentStatus === 'draft') &&
                             !($isReceiver && $currentStatus !== 'draft'))
                         <div class="empty-state">
@@ -1282,7 +1443,7 @@
                     </div>
                 @endif
 
-                {{-- DAFTAR DOKUMEN SURAT ASLI --}}
+                {{-- DAFTAR SURAT ASLI --}}
                 <div class="detail-section mb-3">
                     <div class="detail-section-title">
                         <span class="section-icon"><i class="bi bi-file-earmark-text"></i></span>
@@ -1504,15 +1665,22 @@
                     @endforelse
 
                     {{-- UPLOAD BUKTI PER AKTIVITAS --}}
-                    @if (!$isAdmin && $isReceiver && !$isFinished && $letter->followUps->isNotEmpty())
+                    @if (!$isAdmin && !$isFinished && $userWorkUnitId && $userWorkUnitAssigned && $letter->followUps->isNotEmpty())
                         <div class="border-top mt-3 pt-3">
                             <h6 class="mb-3 text-dark">Upload Bukti untuk Aktivitas Tindak Lanjut</h6>
 
                             @foreach ($letter->followUps->sortBy('created_at') as $followUp)
+                                @php
+                                    $canUploadFollowUpEvidence =
+                                        $userWorkUnitId &&
+                                        $userWorkUnitAssigned &&
+                                        (int) $followUp->work_unit_id === (int) $userWorkUnitId;
+                                @endphp
+
                                 <div class="followup-upload">
                                     <div class="d-flex justify-content-between flex-wrap gap-2 mb-2">
                                         <div class="fw-semibold">
-                                            {{ $statusLabels[$followUp->progress_status] ?? ucfirst($followUp->progress_status) }}
+                                            {{ $followUp->workUnit->name ?? 'Tindak lanjut lama (unit kerja belum ditentukan)' }}
                                         </div>
 
                                         <small class="text-muted">
@@ -1520,34 +1688,44 @@
                                         </small>
                                     </div>
 
+                                    <div class="mb-2">
+                                        <span class="badge {{ $progressBadge($followUp->progress_status) }}">
+                                            {{ $progressLabel($followUp->progress_status) }}
+                                        </span>
+                                    </div>
+
                                     <p class="small text-muted mb-3">
                                         {{ $followUp->description }}
                                     </p>
 
-                                    <form action="{{ route('letters.attachments.store', $letter->id) }}" method="POST"
-                                        enctype="multipart/form-data">
-                                        @csrf
+                                    @if ($canUploadFollowUpEvidence)
+                                        <form action="{{ route('letters.attachments.store', $letter->id) }}"
+                                            method="POST" enctype="multipart/form-data">
+                                            @csrf
 
-                                        <input type="hidden" name="document_type" value="bukti_tindak_lanjut">
-                                        <input type="hidden" name="letter_follow_up_id" value="{{ $followUp->id }}">
+                                            <input type="hidden" name="document_type" value="bukti_tindak_lanjut">
+                                            <input type="hidden" name="letter_follow_up_id"
+                                                value="{{ $followUp->id }}">
 
-                                        <label class="form-label small">
-                                            Pilih bukti PDF untuk aktivitas ini (Opsional)
-                                        </label>
+                                            <label class="form-label small">
+                                                Pilih bukti PDF untuk aktivitas ini (Opsional)
+                                            </label>
 
-                                        <input type="file" name="files[]" class="form-control form-control-sm mb-2"
-                                            accept=".pdf,application/pdf" multiple>
+                                            <input type="file" name="files[]"
+                                                class="form-control form-control-sm mb-2" accept=".pdf,application/pdf"
+                                                multiple>
 
-                                        <small class="text-muted d-block mb-2">
-                                            PDF saja. Maksimal 10 file, masing-masing maksimal 10 MB.
-                                            Tidak wajib mengunggah dokumen.
-                                        </small>
+                                            <small class="text-muted d-block mb-2">
+                                                PDF saja. Maksimal 10 file, masing-masing maksimal 10 MB.
+                                                Tidak wajib mengunggah dokumen.
+                                            </small>
 
-                                        <button type="submit" class="btn btn-sm btn-outline-primary">
-                                            <i class="bi bi-upload me-1"></i>
-                                            Upload Bukti Aktivitas
-                                        </button>
-                                    </form>
+                                            <button type="submit" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-upload me-1"></i>
+                                                Upload Bukti Aktivitas
+                                            </button>
+                                        </form>
+                                    @endif
                                 </div>
                             @endforeach
                         </div>
@@ -1608,8 +1786,18 @@
                                             </div>
 
                                             <div class="small mt-2">
-                                                Unit Kerja / Tujuan:
-                                                <span class="text-dark">{{ $disposition->target_units ?: '-' }}</span>
+                                                Unit Kerja yang Ditugaskan:
+                                                <div class="mt-1">
+                                                    @forelse ($disposition->workUnits as $workUnit)
+                                                        <span class="badge bg-primary me-1 mb-1">
+                                                            {{ $workUnit->name }}
+                                                        </span>
+                                                    @empty
+                                                        <span class="text-dark">
+                                                            {{ $disposition->target_units ?: '-' }}
+                                                        </span>
+                                                    @endforelse
+                                                </div>
                                             </div>
 
                                             @if ($disposition->deadline_at)
@@ -1624,7 +1812,7 @@
 
                                             @if ($disposition->assignedUnit)
                                                 <div class="small text-muted mt-1">
-                                                    Unit tujuan sistem: {{ $disposition->assignedUnit->name }}
+                                                    Instansi tujuan sistem: {{ $disposition->assignedUnit->name }}
                                                 </div>
                                             @endif
 
@@ -1668,12 +1856,19 @@
                                         <div class="history-content">
                                             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                                                 <span class="fw-semibold">
-                                                    {{ $statusLabels[$followUp->progress_status] ?? ucfirst($followUp->progress_status) }}
+                                                    {{ $progressLabel($followUp->progress_status) }}
                                                 </span>
 
                                                 <small class="text-muted">
                                                     {{ $formatDate($followUp->created_at, 'd F Y, H:i') }}
                                                 </small>
+                                            </div>
+
+                                            <div class="small mt-2">
+                                                Unit Kerja:
+                                                <span class="fw-semibold text-dark">
+                                                    {{ $followUp->workUnit->name ?? 'Belum ditentukan (data lama)' }}
+                                                </span>
                                             </div>
 
                                             <div class="small text-muted mt-2">
